@@ -1,0 +1,70 @@
+version: "3"
+
+volumes:
+  dataroom_postgres_data: {}
+  redis_data: {}
+  opensearch_data: {}
+
+services:
+  dataroom_postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_HOST: dataroom_postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dataroom
+    volumes:
+      - dataroom_postgres_data:/var/lib/postgresql/data:Z
+      - ./compose/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+
+  dataroom_django:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+
+    image: dataroom_django
+    command: ./scripts/run_web.sh
+    env_file:
+      - ./.env
+    environment:
+      - DD_AGENT_HOST=dataroom_dogstatsd # Only locally, on ECS/Fargate it's localhost
+      - NUM_GUNICORN_WORKERS=2
+    depends_on:
+      - dataroom_postgres
+      - opensearch
+    volumes:
+      - ./:/app
+    ports:
+      - "8000:8000"
+
+  dataroom_dogstatsd:
+    image: datadog/agent
+    environment:
+      - DD_APM_MAX_TPS=300
+      - DD_APM_ERROR_TPS=300
+      - DD_API_KEY=${DATADOG_API_KEY}
+      - DD_APM_ENABLED=true
+      - DD_PROCESS_AGENT_ENABLED=true
+      - DD_SITE=datadoghq.eu
+      - DD_APM_MAX_CPU_PERCENT=0
+      - DD_TAGS=env:${DATADOG_ENV}
+      - DD_ENV=${DATADOG_ENV}
+      - DD_APM_IGNORE_RESOURCES="GET /_health/"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc/:/host/proc/:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=DevOnly-pass43431
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+    restart: always

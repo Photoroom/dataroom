@@ -1,0 +1,1 @@
+<textarea name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %} class="block w-full rounded-lg border-0 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-300 focus:ring-2 focus:ring-inset{% if widget.attrs.form_widget_class %} {{ widget.attrs.form_widget_class }}{% endif %}">{% if widget.value %}{{ widget.value }}{% endif %}</textarea>

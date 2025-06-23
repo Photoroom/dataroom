@@ -1,0 +1,30 @@
+[project]
+name = "dataroom-client"
+description = "A python client to interface with the Dataroom backend API"
+authors = [
+    {name = "Ales Kocjancic", email = "hi@ales.io"},
+]
+readme = "README.md"
+dynamic = ["version"]
+
+[tool.poetry]
+version = "0.0.0"  # placeholder version, we use dynamic versioning
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = {version = ">=1.0.0,<2.0.0", extras = ["plugin"]}
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "pep440"
+pattern-prefix = "client/"
+metadata = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+httpx = ">=0.24.1,<1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+# thin wrapper around poetry.core.masonry.api with dynamic versioning support
+build-backend = "poetry_dynamic_versioning.backend"

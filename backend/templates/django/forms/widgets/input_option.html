@@ -1,0 +1,10 @@
+<div class="flex gap-x-3 items-center mb-3">
+	{% if 'radio_option.html' in widget.template_name %}
+		{% include "django/forms/widgets/radio_option_input.html" %}
+	{% elif 'checkbox_option.html' in widget.template_name %}
+		{% include "django/forms/widgets/checkbox_option_input.html" %}
+	{% else %}
+		{% include "django/forms/widgets/input.html" %}
+	{% endif %}
+	<label class=""{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %}>{{ widget.label }}</label>
+</div>

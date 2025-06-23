@@ -1,0 +1,139 @@
+{% extends "admin/base_site.html" %}
+{% load i18n dataroom_tags humanize %}
+
+{% block content %}
+
+	<h1 style="background: {% if cluster_health.status == 'red' %}#c64040{% elif cluster_health.status == 'yellow' %}#d5a642{% else %}#6ca358{% endif %}; color: white; padding: 20px; text-align: center;">{{ cluster_health.cluster_name }}</h1>
+
+	<div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px; margin-bottom: 40px;">
+		{% for node_name, node in node_stats.nodes.items %}
+			<div style="min-width: 200px; background: #f8f8f8;">
+				<h3 style="background: {% if 'data' in node.roles %}#79aec8{% else %}#a6dab5{% endif %}; padding: 20px; color: #fff; margin: 0; text-align: center;">
+					{{ node_name }}<br/>
+					<span style="font-weight: normal; font-size: 10px;">{{ node.roles|join:', ' }}</span>
+				</h3>
+				<table style="width: 100%;">
+					<tbody>
+						<tr>
+							<td>Total docs</td>
+							<td><pre style="margin:0;">{{ node.indices.docs.count|intcomma }}</pre></td>
+						</tr>
+						<tr>
+							<td>CPU in use</td>
+							<td><pre style="margin:0;">{% for period, value in node.os.cpu.load_average.items %}{{ period }}: {{ value|times:100|floor }}%  {% endfor %}</pre></td>
+						</tr>
+						<tr>
+							<td>JVM heap in use</td>
+							<td style="{% if node.jvm.mem.heap_used_percent > 80 %}background: #ffc6c6;{% endif %}"><pre style="margin:0;">{{ node.jvm.mem.heap_used_percent }}%</pre></td>
+						</tr>
+						<tr>
+							<td>Storage available</td>
+							{% with node.fs.total.available_in_bytes|divide:node.fs.total.total_in_bytes|times:100|floor as storage_available %}
+								<td style="{% if storage_available < 30 %}background: #ffc6c6;{% endif %}"><pre style="margin:0;">{{ storage_available }}%</pre></td>
+							{% endwith %}
+						</tr>
+						<tr>
+							<td>KNN memory usage</td>
+							{% with knn_stats.nodes|get_key:node_name as knn_node %}
+								{% with knn_node.graph_memory_usage_percentage|floor as knn_memory_usage %}
+									<td style="{% if knn_memory_usage > 80 %}background: #ffc6c6;{% endif %}"><pre style="margin:0;">{{ knn_memory_usage }}%</pre></td>
+								{% endwith %}
+							{% endwith %}
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		{% endfor %}
+	</div>
+
+	<div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px; margin-bottom: 40px;">
+		<div>
+			<h1>Cluster</h1>
+			<table>
+				<tbody>
+					{% for key, value in cluster_health.items %}
+						<tr>
+							<td>{{ key }}</td>
+							<td><pre style="margin:0;">{{ value }}</pre></td>
+						</tr>
+					{% endfor %}
+						<tr>
+							<td>KNN circuit breaker</td>
+							<td style="{% if knn_stats.circuit_breaker_triggered %}background: #ffc6c6;{% endif %}"><pre style="margin:0;">{{ knn_stats.circuit_breaker_triggered }}</pre></td>
+						</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div>
+			<h1>Images index</h1>
+			<table>
+				<tbody>
+					<tr>
+						<td>Doc count</td>
+						<td><pre style="margin:0;">{{ images_stats.primaries.docs.count|intcomma }}</pre></td>
+					</tr>
+					<tr>
+						<td>Size in bytes</td>
+						<td><pre style="margin:0;">{{ images_stats.primaries.store.size_in_bytes|intcomma }}</pre></td>
+					</tr>
+					<tr>
+						<td>Total shards</td>
+						<td><pre style="margin:0;">{{ images_shards.total }}</pre></td>
+					</tr>
+					<tr>
+						<td>Successful shards</td>
+						<td><pre style="margin:0;">{{ images_shards.successful }}</pre></td>
+					</tr>
+					<tr>
+						<td>Failed shards</td>
+						<td><pre style="margin:0;">{{ images_shards.failed }}</pre></td>
+					</tr>
+					<tr>
+						<td>Mapping fields limit</td>
+						<td><pre style="margin:0;">{{ images_settings.mapping.total_fields.limit|default:1000|floor }}</pre></td>
+					</tr>
+					<tr>
+						<td>Mapping fields in use</td>
+						{% with images_mapping.properties|length as mapping_fields_count %}
+							<td style="{% if mapping_fields_count|add:10 >= images_settings.mapping.total_fields.limit|default:1000|floor %}background: #ffc6c6;{% endif %}"><pre style="margin:0;">{{ mapping_fields_count }}</pre></td>
+						{% endwith %}
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div>
+			<h1>Snapshots</h1>
+			<table>
+				<tbody>
+					<tr>
+						<td>Creation Current State</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.creation.current_state }}</pre></td>
+					</tr>
+					<tr>
+						<td>Creation Latest Execution Status</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.creation.latest_execution.status }}</pre></td>
+					</tr>
+					<tr>
+						<td>Creation Latest Execution Info</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.creation.latest_execution.info }}</pre></td>
+					</tr>
+					<tr>
+						<td>Deletion Current State</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.deletion.current_state }}</pre></td>
+					</tr>
+					<tr>
+						<td>Deletion Latest Execution Status</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.deletion.latest_execution.status }}</pre></td>
+					</tr>
+					<tr>
+						<td>Deletion Info</td>
+						<td><pre style="margin:0;">{{ snapshot_stats.deletion.latest_execution.info }}</pre></td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+{% endblock %}

@@ -1,0 +1,23 @@
+{% from 'components/utils.jinja' import attributes %}
+{% macro button(text='', link=None, dispatch=None, variant='btn-primary', type='button', name='', value='', size=None, icon=None, icon_after=False, icon_only=False, disabled=False, class=None, attrs=None) %}
+	{% set final_class = 'btn' %}
+	{% if disabled %}{% set variant = '' %}{% endif %}
+	{% if variant %}{% set final_class = final_class + ' ' + variant %}{% endif %}
+	{% if size == 'sm' %}{% set final_class = final_class + ' btn-sm' %}{% endif %}
+	{% if size == 'lg' %}{% set final_class = final_class + ' btn-lg' %}{% endif %}
+	{% if icon_only %}{% set final_class = final_class + ' btn-icon' %}{% endif %}
+	{% if class %}{% set final_class = final_class + ' ' + class %}{% endif %}
+	{% if link %}
+		<a href="{{ link }}" class="{{ final_class }}" {{ attributes(attrs) }}>
+	{% else %}
+		<button type="{{ type }}"{% if name %} name="{{ name }}"{% endif %}{% if value %} value="{{ value }}"{% endif %} class="{{ final_class }}" {% if disabled %}disabled{% endif %} {{ attributes(attrs) }}>
+	{% endif %}
+	{% if icon and not icon_after %}{{ heroicon_outline(icon) }}{% endif %}
+	{% if text %}<span>{{ text }}</span>{% endif %}
+	{% if icon and icon_after %}{{ heroicon_outline(icon) }}{% endif %}
+	{% if link %}
+		</a>
+	{% else %}
+		</button>
+	{% endif %}
+{% endmacro %}

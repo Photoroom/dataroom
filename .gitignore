@@ -1,0 +1,69 @@
+# Python
+.venv*
+.ruff_cache
+.pytest_cache
+.coverage
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node
+node_modules
+bin
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Databases
+*.sqlite
+*.sqlite3
+
+# Compiled source
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.pyc
+*.pyo
+
+# Packages
+*.7z
+*.dmg
+*.gz
+*.iso
+*.rar
+*.tar
+*.zip
+
+# Project
+.env
+.venv
+celerybeat-schedule
+celerybeat-schedule.db
+db.sqlite3
+.ipynb_checkpoints
+/backend/config/settings/local.py
+/backend/static_collected/
+/backend/static_built/
+/backend/static_deepscatter/
+/backend/static_tmp/
+/backend/media/
+/local_files/
+/notebooks/local_files/

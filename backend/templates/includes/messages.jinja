@@ -1,0 +1,9 @@
+{% if messages %}
+	<div class="container">
+		{% block messages %}
+			{% for message in messages %}
+				<div class="bg-black/20 rounded-xl px-6 py-4 mb-6 dark:text-white dark:bg-white/20">{{ message }}</div>
+			{% endfor %}
+		{% endblock %}
+	</div>
+{% endif %}

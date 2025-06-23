@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}" class="{{ theme }}">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" href="{{ static("favicon.ico") }}">
+	<link rel="apple-touch-icon" href="{{ static("favicon.png") }}">
+
+	<title>{% if page_title %}{{ page_title }} - DataRoom{% else %}DataRoom{% endif %}</title>
+
+	{% block meta_tags %}
+		{% block meta_tag_image %}<meta property="og:image" content="{{ static("favicon.png") }}">{% endblock %}
+		<meta property="og:type" content="website">
+	{% endblock meta_tags %}
+	<meta name="csrf-token" content="{{ csrf_token }}">
+
+	{# styles #}
+	{% block css %}
+		<link href="{{ vite_asset_url('styles/index.css') }}" rel="stylesheet">
+	{% endblock css %}
+
+	{# javascript #}
+    {% block head_js %}
+	    {{ vite_hmr_client() }}
+    {% endblock %}
+	{% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% block body %}{% endblock %}
+{# javascript #}
+{% block js_wrap %}
+    {% block js %}
+    {% endblock %}
+{% endblock %}
+<noscript><div class="fixed bottom-0 left-0 right-0 w-full bg-red-500 text-center text-white text-sm p-2">{{ _("Please activate JavaScript to enable all features!") }}</div></noscript>
+</body>
+</html>

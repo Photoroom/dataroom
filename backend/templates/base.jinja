@@ -1,0 +1,24 @@
+{% extends 'root.jinja' %}
+{% from "components/button.jinja" import button %}
+
+
+{% block body %}
+<div class="container-sm">
+	<header class="pt-12 mb-12">
+        <a href="{{ url('index') }}" class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-1 items-center justify-start w-full">
+                {% include 'includes/logo.jinja' %}
+                <h1 class="text-lg block font-bold">DataRoom</h1>
+            </div>
+        </a>
+	</header>
+	{% block messages %}
+        {% include 'includes/messages.jinja' %}
+	{% endblock %}
+	{% block container %}
+		<main class="p-8 rounded-lg shadow-lg border border-light-300 dark:border-dark-300 bg-light-100 dark:bg-dark-100">
+            {% block content %}{% endblock %}
+        </main>
+	{% endblock %}
+</div>
+{% endblock %}

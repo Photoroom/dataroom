@@ -1,0 +1,12 @@
+[flake8]
+show-source = True
+max-line-length = 120
+select = DJ
+exclude =
+    .git,
+    __pycache__,
+    docs,
+    build,
+    dist,
+    .venv,
+    .ruff_cache

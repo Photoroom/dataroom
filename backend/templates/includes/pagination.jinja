@@ -1,0 +1,35 @@
+{% if is_paginated %}
+{% set current = page_obj.number %}
+{% set total = paginator.num_pages %}
+{% set item_class = 'block px-3 py-3 mx-2 my-2 bg-white' %}
+{% set active_item_class = 'block px-3 py-3 mx-2 my-2 bg-gray-300' %}
+<ol class="flex flex-wrap items-center align-center justify-center mt-8 text-sm">
+	{% if page_obj.has_previous() %}
+		<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}" title="{{ _('First') }}">{{ heroicon_outline('chevron-double-left') }}</a></li>
+		<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ current - 1 }}" title="{{ _('Previous') }}">{{ heroicon_outline('chevron-left') }}</a></li>
+	{% endif %}
+	{% if total > 10 %}
+		{% if current > 5 %}<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ current - 5 }}">&hellip;</a></li>{% endif %}
+		{% for page in paginator.page_range %}
+			{% if page == current %}
+				<li class="{{ active_item_class }}"><span>{{ page }}</span></li>
+			{% elif page > current - 5 and page < current + 5 %}
+				<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ page }}">{{ page }}</a></li>
+			{% endif %}
+		{% endfor %}
+		{% if current < total - 4 %}<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ current + 5 }}">&hellip;</a></li>{% endif %}
+	{% else %}
+		{% for page in paginator.page_range %}
+			{% if page == current %}
+				<li class="{{ active_item_class }}"><span>{{ page }}</span></li>
+			{% else %}
+				<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ page }}">{{ page }}</a></li>
+			{% endif %}
+		{% endfor %}
+	{% endif %}
+	{% if page_obj.has_next() %}
+		<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ current + 1 }}" title="{{ _('Next') }}">{{ heroicon_outline('chevron-right') }}</a></li>
+		<li><a class="{{ item_class }}" href="?{% if search_query_string %}{{ search_query_string }}&{% endif %}page={{ total }}" title="{{ _('Last') }}">{{ heroicon_outline('chevron-double-right') }}</a></li>
+	{% endif %}
+</ol>
+{% endif %}

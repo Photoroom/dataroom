@@ -1,0 +1,44 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+	
+	<div style="margin-bottom: 40px;">
+		<h1>Tasks Queue</h1>
+		<p>Last updated {% if last_update %}{{ last_update|timesince }} ago{% else %}never{% endif %}</p>
+		<table>
+			<thead>
+				<tr>
+					<th>Queue</th>
+					<th>Current</th>
+					<th>% of total</th>
+					<th>Change per second</th>
+					<th>Time left</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for name, val in queue.items %}
+					<tr>
+						<td>
+							{{ name }}
+						</td>
+						<td title="{{ val.date_updated }}">
+							<pre style="margin:0;">{{ val.current }}</pre>
+						</td>
+						<td>
+							<pre style="margin:0;">{{ val.percent|floatformat:0 }}%</pre>
+						</td>
+						<td title="{% if val.prev_date_updated %}{{ val.prev }} at {{ val.prev_date_updated }}{% endif %}">
+							<pre style="margin:0;">{% if val.change_per_second >= 0 %}+{% endif %}{{ val.change_per_second|floatformat:4 }}/s</pre>
+						</td>
+						<td>
+							<pre style="margin:0;">{{ val.time_left }}</pre>
+						</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+*.pyc
+*.pyo
+/.env
+/.venv
+**/node_modules
+/backend/static_built
+/backend/static_collected
+/backend/media
+/backend/config/local.py
+.DS_Store
+.editorconfig
+terraform
+notebooks

@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.4
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+        files: backend/
+      - id: ruff-format
+        files: backend/
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 5.0.4
+    hooks:
+      - id: flake8
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: 2.0.1
+    hooks:
+      - id: poetry-check

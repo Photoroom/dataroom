@@ -1,0 +1,1 @@
+{% if errors %}<ul class="text-sm text-red-700 {{ error_class }}">{% for field, error in errors %}<li>{% if field != '__all__' %}{{ field }}{% endif %}{{ error }}</li>{% endfor %}</ul>{% endif %}

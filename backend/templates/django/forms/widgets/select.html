@@ -1,0 +1,9 @@
+<select name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %} class="block w-full rounded-lg border-0 px-3 py-2 shadow-xs ring-1 ring-inset ring-gray-300 placeholder:text-gray-300 focus:ring-2 focus:ring-inset{% if widget.attrs.form_widget_class %} {{ widget.attrs.form_widget_class }}{% endif %}">
+	{% for group_name, group_choices, group_index in widget.optgroups %}
+		{% if group_name %}<optgroup label="{{ group_name }}">{% endif %}
+		{% for option in group_choices %}
+			{% include option.template_name with widget=option %}
+		{% endfor %}
+		{% if group_name %}</optgroup>{% endif %}
+	{% endfor %}
+</select>

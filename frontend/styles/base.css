@@ -1,0 +1,22 @@
+/* Scrollbars */
+
+html, .light {
+  background-color: var(--color-light);
+  color: var(--color-black);
+}
+
+.dark {
+  background-color: var(--color-dark);
+  color: var(--color-white);
+}
+
+/* Scrollbars */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-color) transparent;
+}
+
+.dark * {
+  scrollbar-color: var(--scrollbar-color-dark) transparent;
+}

@@ -1,0 +1,90 @@
+@utility btn {
+  @apply text-center text-white font-normal text-base font-sans leading-snug
+      rounded-lg focus:outline-hidden active:outline-hidden cursor-pointer
+      border border-transparent
+      px-7 py-3
+      inline-flex items-center justify-center align-middle
+      transition-colors;
+
+  > svg {
+    @apply inline-block w-[24px] h-[24px] my-[-1px] shrink-0;
+    &:first-child {
+      @apply mr-1 -ml-1;
+    }
+    &:last-child {
+      @apply -mr-1 ml-1;
+    }
+    &:only-child {
+      @apply mr-0 ml-0;
+    }
+  }
+
+  /* ----------------- disabled */
+  &:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
+
+/* ----------------- size variations */
+@utility btn-sm {
+  @apply leading-6 text-sm
+      px-6 py-1;
+  > svg {
+    @apply w-[20px] h-[20px] my-0;
+  }
+  &.btn-icon {
+    @apply px-2 py-2;
+  }
+}
+
+@utility btn-lg {
+  @apply px-12 py-4 text-lg;
+  > svg {
+    @apply w-[28px] h-[28px];
+  }
+}
+
+/* ----------------- icon variation */
+@utility btn-icon {
+  @apply px-3 py-3;
+  > svg {
+    &:first-child,
+    &:last-child,
+    &:only-child {
+      @apply mr-0 ml-0;
+    }
+  }
+  &.btn-sm {
+    @apply px-2 py-2;
+  }
+}
+
+/* ----------------- color variations */
+@utility btn-primary {
+  @apply bg-black border-black text-white
+    hover:bg-neutral-800 hover:border-neutral-800
+    focus:bg-neutral-800 focus:border-neutral-800
+    active:bg-black active:border-black;
+  @apply dark:bg-white dark:border-white dark:text-black
+    dark:hover:bg-neutral-200 dark:hover:border-neutral-200
+    dark:focus:bg-neutral-200 dark:focus:border-neutral-200
+    dark:active:bg-white dark:active:border-white;
+}
+
+@utility btn-outline {
+  @apply bg-transparent border-black/20 text-black/70
+    hover:bg-transparent hover:border-black/60 hover:text-black
+    focus:bg-transparent focus:border-black/60 focus:text-black
+    active:bg-transparent active:border-black/30 active:text-black/70;
+  @apply dark:bg-transparent dark:border-white/20 dark:text-white/80
+    dark:hover:bg-transparent dark:hover:border-white/60 dark:hover:text-white
+    dark:focus:bg-transparent dark:focus:border-white/60 dark:focus:text-white
+    dark:active:bg-transparent dark:active:border-white/30 dark:active:text-white/80;
+}
+
+@utility btn-danger {
+  @apply bg-rose-600 border-rose-600 text-white
+    hover:bg-rose-500 hover:border-rose-500
+    focus:bg-rose-500 focus:border-rose-500
+    active:bg-rose-600 active:border-rose-600;
+}

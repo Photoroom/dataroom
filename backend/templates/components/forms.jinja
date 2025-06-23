@@ -1,0 +1,90 @@
+{% from 'components/utils.jinja' import attributes %}
+
+
+{% macro render_label(field, form_label_class=None) %}
+	{% set id_ = field.field.widget.attrs.get('id') or field.auto_id %}
+	{% set attrs = {"for": field.field.widget.id_for_label(id_) } %}
+	{% if field.use_fieldset %}
+		<fieldset>
+		{% set label_tag = 'legend' %}
+	{% else %}
+		{% set label_tag = 'label' %}
+	{% endif %}
+	<{{ label_tag }} {{ attributes(attrs) }} class="{% if form_label_class is not none %}{{ form_label_class }}{% else %}block leading-6{% endif %}">{{ field.label }}</{{ label_tag }}>
+	{% if field.use_fieldset %}</fieldset>{% endif %}
+{% endmacro %}
+
+
+{% macro render_field_errors(errors) %}
+	{% if errors %}{{ errors }}{% endif %}
+{% endmacro %}
+
+
+{% macro render_field_inner(field, errors, form_field_class=None, form_widget_class=None, no_margin=False, attrs=None) %}
+	<div class="{% if not no_margin %}mt-2{% endif %}{% if form_field_class %} {{ form_field_class }}{% endif %}">
+		{% if form_widget_class %}{{ set_key(field.field.widget.attrs, 'form_widget_class', form_widget_class) }}{% endif %}
+        {% if attrs %}{% for attr, val in attrs.items() %}{{ set_key(field.field.widget.attrs, attr, val) }}{% endfor %}{% endif %}
+		{{ field }}
+	</div>
+{% endmacro %}
+
+
+{% macro render_help_text(field, no_margin=False) %}
+	{% if field.help_text %}<div class="{% if not no_margin %}mt-2 {% endif %}text-sm text-gray-500">{{ field.help_text|safe }}</div>{% endif %}
+{% endmacro %}
+
+
+{% macro render_field_single_checkbox(field, errors, form_label_class=None, form_field_class=None, form_widget_class=None) %}
+	<div class="flex gap-x-3 items-center">
+		{{ render_field_inner(field, errors, form_field_class=form_field_class, form_widget_class=form_widget_class, no_margin=True) }}
+		<div>
+			{{ render_label(field, form_label_class=form_label_class) }}
+			{{ render_field_errors(errors) }}
+			{{ render_help_text(field, no_margin=True) }}
+		</div>
+	</div>
+{% endmacro %}
+
+
+{% macro render_field(field, errors, form_group_class=None, form_label_class=None, form_field_class=None, form_widget_class=None) %}
+	{% set is_checkbox = field.field.widget.input_type in ['checkbox'] and not field.field.widget.allow_multiple_selected %}
+	{% if errors %}
+		{% if not form_widget_class %}{% set form_widget_class = '' %}{% endif %}
+		{% set form_widget_class = form_widget_class + ' ring-1 ring-red-700 bg-red-50' %}
+	{% endif %}
+	<div class="{% if form_group_class is not none %}{{ form_group_class }}{% else %}mb-6{% endif %}">
+		{% if is_checkbox %}
+			{{ render_field_single_checkbox(field, errors, form_label_class=form_label_class, form_field_class=form_field_class, form_widget_class=form_widget_class) }}
+		{% else %}
+			{{ render_label(field, form_label_class=form_label_class) }}
+			{{ render_field_errors(errors) }}
+			{{ render_field_inner(field, errors, form_field_class=form_field_class, form_widget_class=form_widget_class) }}
+			{{ render_help_text(field) }}
+		{% endif %}
+	</div>
+{% endmacro %}
+
+
+{% macro render_form_errors(form) %}
+	{% set errors = form.non_field_errors() %}
+	{% if errors %}
+		<div class="bg-red-50 text-red-900 border border-red-300 rounded-lg p-4 mb-6">
+			{{ errors }}
+		</div>
+	{% endif %}
+{% endmacro %}
+
+
+{% macro render_form_hidden_fields(form) %}
+	{% for field in form.hidden_fields() %}{{ field }}{% endfor %}
+{% endmacro %}
+
+
+{% macro render_form(form, form_group_class=None, form_label_class=None, form_field_class=None, form_widget_class=None) %}
+	{% set form_context = form.get_context() %}
+	{{ render_form_errors(form) }}
+	{% for field, errors in form_context.fields %}
+		{{ render_field(field, errors, form_group_class=form_group_class, form_label_class=form_label_class, form_field_class=form_field_class, form_widget_class=form_widget_class) }}
+	{% endfor %}
+	{{ render_form_hidden_fields(form) }}
+{% endmacro %}

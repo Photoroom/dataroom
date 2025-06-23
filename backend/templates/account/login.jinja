@@ -1,0 +1,31 @@
+{% extends "account/base.jinja" %}
+{% from "components/button.jinja" import button %}
+{% from "components/forms.jinja" import render_field, render_form_errors, render_form_hidden_fields %}
+
+{% set page_title = _('Login') %}
+
+{% block content_title %}{{ _('Login') }}{% endblock %}
+
+{% block content_inner %}
+    {% if google_login_url %}
+        <form method="POST" action="{{ google_login_url }}">
+            {% csrf_token %}
+            {{ button(_("Sign in with Google"), type="submit", variant="btn-primary", class="mt-2 w-full") }}
+        </form>
+    {% else %}
+        <form method="POST" action="{{ url('account_login') }}">
+            {% csrf_token %}
+            {{ render_form_errors(form) }}
+            {{ render_field(form['login']) }}
+            {{ render_field(form['password']) }}
+            <div class="my-4">
+                {{ render_field(form['remember'], form_group_class='') }}
+            </div>
+            {{ button(_("Login"), type="submit", variant="btn-primary", class="mt-4 w-full") }}
+            {{ render_form_hidden_fields(form) }}
+            {% if redirect_field_value %}
+                <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}"/>
+            {% endif %}
+        </form>
+    {% endif %}
+{% endblock %}

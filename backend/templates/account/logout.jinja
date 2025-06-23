@@ -1,0 +1,17 @@
+{% extends "account/base.jinja" %}
+{% from "components/button.jinja" import button %}
+
+{% set page_title = _('Log out') %}
+
+{% block content_title %}{{ _('Log out') }}{% endblock %}
+
+{% block content_inner %}
+	<p class="mb-6">{{ _("Are you sure you want to log out?") }}</p>
+	<form method="post" action="{{ url('account_logout') }}">
+		{% csrf_token %}
+		{% if redirect_field_value %}
+			<input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}"/>
+		{% endif %}
+		{{ button(_("Log out"), type="submit", class="w-full") }}
+	</form>
+{% endblock %}

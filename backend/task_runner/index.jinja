@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tasks</title>
+</head>
+<body>
+
+{% for task_name, stats in stats_per_task.items() %}
+    <table style="margin-bottom: 20px; text-align: left; font-family: sans-serif; border-spacing: 0;">
+        <tbody>
+            {% for name, val in stats.items() %}
+                <tr>
+                    <th style="padding: 5px; border-bottom: 1px solid #aaa; font-weight: normal;">{{ name }}</th>
+                    <td style="padding: 5px 10px; border-bottom: 1px solid #aaa;">
+                        <pre style="padding: 0; margin: 0;">{{ val }}</pre>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endfor %}
+
+</body>
+</html>

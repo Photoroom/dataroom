@@ -1,0 +1,105 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      opensearch:
+        image: opensearchproject/opensearch:2.13.0
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: true
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+          OPENSEARCH_INITIAL_ADMIN_PASSWORD: "DevOnly-pass43431"
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=50s"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 9200:9200
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create DB
+        run: PGPASSWORD=postgres createdb -h localhost -p 5432 -U postgres dataroom
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.14.0
+          cache: "npm"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libsnappy-dev libcurl4-openssl-dev libssl-dev
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.13.0
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install -U poetry
+
+      - name: Install Python dependencies
+        run: poetry install --with dev
+
+      - name: Collect static
+        run: |
+          source .venv/bin/activate
+          python manage.py collectstatic -l --noinput --settings=backend.config.settings.test
+
+      - name: Check for missing migrations
+        run: |
+          source .venv/bin/activate
+          python manage.py makemigrations --check --dry-run --settings=backend.config.settings.test
+
+      - name: Setup opensearch
+        run: |
+          source .venv/bin/activate
+          python manage.py setup_opensearch --confirm --settings=backend.config.settings.test
+
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          python -m pytest --junit-xml=.test_report.xml
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dataroom
+
+      - uses: test-summary/action@v2
+        with:
+          paths: .test_report.xml
+        if: always()

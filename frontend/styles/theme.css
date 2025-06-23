@@ -1,0 +1,48 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+
+  /* Typography */
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-bold: 600;
+
+  --font-sans:
+    Inter, system-ui, -apple-system, Roboto, Segoe UI, Helvetica Neue, Arial,
+    sans-serif;
+    
+  /* Spacing */
+
+  --gap-gutter: 1rem;
+  --gap-gutter-half: 0.5rem;
+
+  --margin-gutter: 1rem;
+  --margin-gutter-half: 0.5rem;
+
+  --padding-gutter: 1rem;
+  --padding-gutter-half: 0.5rem;
+
+  /* Scrollbars */
+
+  --scrollbar-color: rgba(0, 0, 0, 0.2);
+  --scrollbar-color-dark: rgba(255, 255, 255, 0.2);
+
+  /* Layout */
+
+  --spacing-sidebar-open: 18rem;
+  --spacing-sidebar-closed: 4rem;
+  
+  --spacing-drawer: 22rem;
+
+  /* Colors */
+
+  --color-light-100: #ffffff;
+  --color-light: #f3f4f6;
+  --color-light-300: #d1d5db;
+
+
+  --color-dark: #171717;
+  --color-dark-100: #262626;
+  --color-dark-300: #3f3f46;
+}

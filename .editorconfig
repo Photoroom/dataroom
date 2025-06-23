@@ -1,0 +1,39 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+# Python
+[*.py]
+indent_style = space
+indent_size = 4
+
+# Javascript
+[*.{js,jsx,cjs,ts,tsx}]
+indent_style = space
+indent_size = 2
+
+# HTML
+[{*.html, *.jinja, *.jinja2}]
+max_line_length = off
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# CSS
+[{*.css, *.less, *.scss}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# Other
+[{package.json,.travis.yml}]
+indent_style = space
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+indent_size = 4
+tab_width = 4

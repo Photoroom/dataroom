@@ -1,0 +1,31 @@
+{% extends "root.jinja" %}
+
+{% block body %}
+    <div id="root"></div>
+{% endblock %}
+
+{% block css %}{% endblock %}
+
+{% block js %}
+{{ vite_asset('src/index.ts') }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  window.SPA({
+    user: {
+      name: "{{ user.first_name }}",
+      email: "{{ user.email }}",
+      isStaff: {% if user.is_staff %}true{% else %}false{% endif %},
+    },
+    urls: {
+      {% if user.is_staff %}
+        adminBackend: "{{ url('admin:index') }}",
+      {% endif %}
+      logout: "{{ url('account_logout') }}",
+      login: "{{ url('account_login') }}",
+      APIdocs: "{{ url('api_docs') }}",
+      deepscatter: "{{ deepscatter_url }}",
+    },
+  })
+});
+</script>
+{% endblock %}

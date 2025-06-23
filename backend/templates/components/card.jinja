@@ -1,0 +1,14 @@
+{% macro card(color='white', size='', margin='mt-1 mb-gutter', class='', link='') %}
+    {% set base_card_class = "flex flex-col relative font-normal text-gray-800 hover:text-gray-800 focus:text-gray-800 rounded-2xl shadow-lg border" %}
+    {% set size_card_class = 'px-8 py-6' if size == 'lg' else 'px-6 py-4' %}
+    {% set color_card_class = 'bg-green-50 border-green-100' if color == 'green' else 'bg-white border-gray-100' %}
+    {% if link %}
+        <a href="{{ link }}" class="{{ base_card_class }} {{ size_card_class }} {{ color_card_class }} {{ margin }} {{ class }}">
+            {{ caller() }}
+        </a>
+    {% else %}
+        <div class="{{ base_card_class }} {{ size_card_class }} {{ color_card_class }} {{ margin }} {{ class }}">
+            {{ caller() }}
+        </div>
+    {% endif %}
+{% endmacro %}

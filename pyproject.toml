@@ -1,0 +1,146 @@
+[project]
+name = "dataroom"
+version = "1.0.0"
+description = ""
+authors = [
+    {name = "Ales Kocjancic", email = "hi@ales.io"}
+]
+readme = "README.md"
+requires-python = ">=3.13.0,<4"
+dynamic = ["dependencies"]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.13.0,<4"
+django = {extras = ["argon2"], version = "^5.0.7"}
+djangorestframework = "^3.15.2"
+whitenoise = {extras = ["brotli"], version = "^6.2.0"}
+django-allauth = "^0.58.2"
+django-annoying = "^0.10.6"
+django-environ = "^0.10.0"
+django-extensions = "^3.1.5"
+django-model-utils = "^4.2.0"
+boto3 = "^1.26.51"
+django-storages = "^1.13.2"
+uvicorn = "^0.20.0"
+gunicorn = "^20.1.0"
+Pillow = "^10.1.0"
+django-vite = "^2.0.2"
+django-jinja = "^2.10.2"
+heroicons = {extras = ["jinja"], version = "^2.11.0"}
+psycopg2 = "^2.9.6"
+django-admin-shortcuts = "^3.0.1"
+httpx = "^0.24.1"
+pgvector = "^0.2.3"
+django-filter = "^23.4"
+ddtrace = "^2.11.4"
+drf-spectacular = "^0.26.5"
+pytest-asyncio = "^0.21.1"
+numpy = "^1.26.2"
+mosaicml-streaming = "^0.7.1"
+flask = "^3.0.1"
+flask-httpauth = "^4.8.0"
+aioboto3 = "^12.2.0"
+cryptography = "41.0.7"
+jsonschema = "^4.21.1"
+aws-requests-auth = "^0.4.3"
+opensearch-py = "^2.5.0"
+umap-learn = "^0.5.6"
+gevent = {extras = ["greenlet"], version = "^24.2.1"}
+dask = {extras = ["distributed"], version = "^2024.9.0"}
+bokeh = "^3.5.2"
+pytest-mock = "^3.14.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.2.1"
+freezegun = "^1.2.2"
+pytest-django = "^4.5.2"
+pytest-playwright = "^0.3.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.12.0"
+ruff = "^0.5.4"
+flake8-django = "^1.1.5"
+flake8 = "^5"
+django-debug-toolbar = "^5.2.0"
+pre-commit = "^2.17.0"
+factory-boy = "^3.2.1"
+
+
+
+[tool.poetry.group.develop.dependencies]
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "backend.config.settings.test"
+FAIL_INVALID_TEMPLATE_VARS = false
+
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+skip-string-normalization = true
+extend-exclude = '''
+(
+  /migrations/.+\.py
+  |
+  /config/settings/.+\.py
+)
+'''
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+    "*/migrations/*.py",
+    "*/opensearch_migrations/*.py",
+    "*/config/settings/local.py",
+    "*/config/settings/local.example.py",
+]
+lint.select = [
+    "E",  # pycodestyle
+    "W",  # pycodestyle
+    "F",  # Pyflakes
+    "B",  # flake8-bugbear
+    "A",  # flake8-builtins
+    "I",  # isort
+    "N",  # pep8-naming
+    "UP",  # pyupgrade
+    "COM",  # flake8-commas
+    "DTZ",  # flake8-datetimez
+    "ISC",  # flake8-implicit-str-concat
+    "G",  # flake8-logging-format
+    "INP",  # flake8-no-pep420
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "T201",  # flake8-print
+    "PT",  # flake8-pytest-style
+    "SIM",  # flake8-simplify
+    #"PTH",  # flake8-use-pathlib
+    "RUF",  # Ruff-specific rules
+    "T",  # flake8-print
+]
+lint.ignore = [
+    "BLE",  # BlindExcept
+    "N815",  # mixedCase variables
+    "G004", # Logging statement uses f-string
+    "COM812", # Causes conflicts with formatter
+    "ISC001", # Causes conflicts with formatter
+    "Q000", # don't enforce quote consistency
+    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.ruff.lint.per-file-ignores]
+"manage.py" = ["INP001"]
+"backend/config/settings/*.py" = ["F405"]
