@@ -7,7 +7,6 @@ import { CollapsibleProvider } from "../context/CollapsibleContext";
 import { ImageDrawerProvider } from "../context/ImageDrawerContext";
 import { DatasetDrawerProvider } from "../context/DatasetDrawerContext";
 
-
 interface MainLayoutProps {
   sidebarActiveNav: SidebarActiveNav;
   sidebarContent: ReactNode;
@@ -16,26 +15,26 @@ interface MainLayoutProps {
   children: ReactNode;
 }
 
-
-export function MainLayout({ sidebarActiveNav, sidebarContent, drawerContent, useDrawer, children } : MainLayoutProps) {
-
+export function MainLayout({
+  sidebarActiveNav,
+  sidebarContent,
+  drawerContent,
+  useDrawer,
+  children,
+}: MainLayoutProps) {
   return (
     <ImageListDataProvider>
       <SidebarProvider initialActiveNav={sidebarActiveNav}>
         <ImageDrawerProvider>
           <DatasetDrawerProvider>
             <CollapsibleProvider>
-              <Sidebar>
-                {sidebarContent}
-              </Sidebar>
+              <Sidebar>{sidebarContent}</Sidebar>
               {children}
-              <Drawer useDrawer={useDrawer}>
-                {drawerContent}
-              </Drawer>
+              <Drawer useDrawer={useDrawer}>{drawerContent}</Drawer>
             </CollapsibleProvider>
           </DatasetDrawerProvider>
         </ImageDrawerProvider>
       </SidebarProvider>
     </ImageListDataProvider>
-  )
+  );
 }

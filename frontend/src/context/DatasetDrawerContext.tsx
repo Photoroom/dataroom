@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Dataset } from '../api/client.schemas';
-import { useDatasetsRetrieve } from '../api/client';
-import { URLS } from '../urls';
-import toast from 'react-hot-toast';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Dataset } from "../api/client.schemas";
+import { useDatasetsRetrieve } from "../api/client";
+import { URLS } from "../urls";
+import toast from "react-hot-toast";
 
 interface DatasetDrawerContextType {
   isDrawerOpen: boolean;
@@ -13,13 +13,19 @@ interface DatasetDrawerContextType {
   refetchDataset: () => void;
 }
 
-const DatasetDrawerContext = createContext<DatasetDrawerContextType | undefined>(undefined);
+const DatasetDrawerContext = createContext<
+  DatasetDrawerContextType | undefined
+>(undefined);
 
-export function DatasetDrawerProvider({ children }: { children: React.ReactNode }) {
+export function DatasetDrawerProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const navigate = useNavigate();
   const urlParams = useParams();
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  
+
   // the drawer is open if we are on the dataset detail page
   useEffect(() => {
     setIsDrawerOpen(urlParams.datasetSlug !== undefined);
@@ -28,10 +34,12 @@ export function DatasetDrawerProvider({ children }: { children: React.ReactNode 
   // to close the drawer we just navigate to the dataset list
   const closeDrawer = () => {
     navigate(URLS.DATASET_LIST());
-  }
+  };
 
   // -------------------- Dataset detail state --------------------
-  const [datasetSlug, setDatasetId] = useState<string>(urlParams.datasetSlug || "");
+  const [datasetSlug, setDatasetId] = useState<string>(
+    urlParams.datasetSlug || "",
+  );
   const [dataset, setDataset] = useState<Dataset | undefined>(undefined);
 
   useEffect(() => {
@@ -42,8 +50,12 @@ export function DatasetDrawerProvider({ children }: { children: React.ReactNode 
   }, [urlParams, datasetSlug]);
 
   // -------------------- Fetching dataset detail --------------------
-  const { data: datasetDetailResponse, isError: isLoadingDatasetDetailError, refetch: refetchDataset } = useDatasetsRetrieve(datasetSlug);
-  
+  const {
+    data: datasetDetailResponse,
+    isError: isLoadingDatasetDetailError,
+    refetch: refetchDataset,
+  } = useDatasetsRetrieve(datasetSlug);
+
   useEffect(() => {
     if (isLoadingDatasetDetailError) {
       toast.error("Error loading dataset");
@@ -57,24 +69,28 @@ export function DatasetDrawerProvider({ children }: { children: React.ReactNode 
   }, [datasetDetailResponse]);
 
   // -------------------- Return --------------------
-  return (  
-    <DatasetDrawerContext.Provider value={{
-      isDrawerOpen,
-      closeDrawer,
-      datasetSlug,
-      dataset,
-      refetchDataset,
-    }}>
+  return (
+    <DatasetDrawerContext.Provider
+      value={{
+        isDrawerOpen,
+        closeDrawer,
+        datasetSlug,
+        dataset,
+        refetchDataset,
+      }}
+    >
       {children}
     </DatasetDrawerContext.Provider>
-  )
+  );
 }
 
 // hook to use the drawer context
 export function useDatasetDrawer() {
   const context = useContext(DatasetDrawerContext);
   if (context === undefined) {
-    throw new Error('useDatasetDrawer must be used within a DatasetDrawerProvider');
+    throw new Error(
+      "useDatasetDrawer must be used within a DatasetDrawerProvider",
+    );
   }
   return context;
 }

@@ -5,9 +5,7 @@ import { ImagesDrawerContent } from "./images/ImagesDrawerContent";
 import { useImageDrawer } from "../context/ImageDrawerContext";
 import { SidebarActiveNav } from "../context/SidebarContext";
 
-
 export function ImagesLayout() {
-
   return (
     <MainLayout
       sidebarActiveNav={SidebarActiveNav.IMAGES}
@@ -17,5 +15,5 @@ export function ImagesLayout() {
     >
       <ImageList />
     </MainLayout>
-  )
+  );
 }

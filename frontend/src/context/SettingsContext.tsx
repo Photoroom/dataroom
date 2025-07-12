@@ -1,20 +1,20 @@
-import React, {useContext} from 'react';
+import React, { useContext } from "react";
 
 export const SettingsContext = React.createContext({});
 
 export type SettingsContextProps = {
   user: {
-    name: string,
-    email: string,
-    isStaff: boolean,
+    name: string;
+    email: string;
+    isStaff: boolean;
   };
   urls: {
-    adminBackend?: string,
-    logout: string,
-    login: string,
-    APIdocs: string,
-    deepscatter: string,
-  },
+    adminBackend?: string;
+    logout: string;
+    login: string;
+    APIdocs: string;
+    deepscatter: string;
+  };
 };
 
 export function useSettings(): SettingsContextProps {
@@ -22,7 +22,7 @@ export function useSettings(): SettingsContextProps {
 
   if (typeof context === "undefined") {
     throw new Error(
-      "useSettings should be used within the SettingsContext provider!"
+      "useSettings should be used within the SettingsContext provider!",
     );
   }
 
