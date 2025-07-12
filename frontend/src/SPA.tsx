@@ -9,7 +9,7 @@ import "../styles/index.css";
 
 declare global {
     interface Window {
-        SPA: ({}: SettingsContextProps) => void;
+        SPA: (settings: SettingsContextProps) => void;
     }
 }
 

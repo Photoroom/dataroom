@@ -18,7 +18,7 @@ const ImageDrawerContext = createContext<ImageDrawerContextType | undefined>(und
 export function ImageDrawerProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const urlParams = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   
   // the drawer is open if we are on the image detail page

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from "react-router-dom";
-import { imagesList, imagesRandomRetrieve, imagesRetrieve, useImagesList, useImagesRandomRetrieve, useImagesSimilarList, useImagesSimilarToFileCreate, useImagesSimilarToTextCreate, useImagesSimilarToVectorCreate } from '../api/client';
-import { OSImage, PaginatedOSImage, SimilarOSImage } from '../api/client.schemas';
+import { imagesRandomRetrieve, imagesRetrieve, useImagesList, useImagesRandomRetrieve, useImagesSimilarList, useImagesSimilarToFileCreate, useImagesSimilarToTextCreate, useImagesSimilarToVectorCreate } from '../api/client';
+import { OSImage, PaginatedOSImage } from '../api/client.schemas';
 import { axiosInstance } from '../api/axios';
 import toast from 'react-hot-toast';
 

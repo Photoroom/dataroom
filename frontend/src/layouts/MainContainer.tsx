@@ -1,16 +1,15 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { useSidebar } from "../context/SidebarContext";
 import { twMerge } from "tailwind-merge";
 
 
 interface MainContainerProps {
   isDrawerOpen: boolean;
-  ref?: any;  // TODO: forwardRef ??
   children: React.ReactNode;
 }
 
-
-export const MainContainer: React.FC<MainContainerProps> = function ({ isDrawerOpen, ref, children }) {
+export const MainContainer = forwardRef<HTMLDivElement, MainContainerProps>(
+  function MainContainer({ isDrawerOpen, children }, ref) {
   const { isSidebarOpen } = useSidebar();
 
   return (
@@ -24,4 +23,4 @@ export const MainContainer: React.FC<MainContainerProps> = function ({ isDrawerO
       {children}
     </div>
   );
-}
+});

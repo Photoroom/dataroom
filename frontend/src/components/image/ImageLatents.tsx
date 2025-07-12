@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { CodeBracketSquareIcon, Square3Stack3DIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import React from "react";
+import { CodeBracketSquareIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
 import { OSImage } from "../../api/client.schemas";
 // import ImageSegmentation from "./ImageSegmentation";
 import { Collapsible } from "../common/Collapsible";

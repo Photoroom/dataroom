@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useImageDrawer } from "../../context/ImageDrawerContext";
 import { ImagePreview } from "../../components/image/ImagePreview";
 import { ImageDetails } from "../../components/image/ImageDetails";

@@ -5,7 +5,7 @@
  * Store training images at scale.
  * OpenAPI spec version: 1.0.0
  */
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+
 export const AttributeFieldStringFormat = {
   ...StringFormatEnum,
   ...BlankEnum,

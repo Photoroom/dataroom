@@ -66,7 +66,7 @@ export const ImagePopup: React.FC<ImagePopupProps> = ({ image, isOpen, onClose }
 
   // -------------------- Masks --------------------
   const [selectedMasks, setSelectedMasks] = useState<Set<string>>(new Set());
-  const [masks, setMasks] = useState<OSImageLatent[]>(image.latents?.filter((latent) => latent.is_mask === true) ?? []);
+  const [masks] = useState<OSImageLatent[]>(image.latents?.filter((latent) => latent.is_mask === true) ?? []);
 
   const handleSelectNoMasks = () => {
     setSelectedMasks(new Set());

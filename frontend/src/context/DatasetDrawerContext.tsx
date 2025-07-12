@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Dataset } from '../api/client.schemas';
 import { useDatasetsRetrieve } from '../api/client';
 import { URLS } from '../urls';

@@ -1,5 +1,5 @@
 import React from "react";
-import { OSImage, Tag } from "../../api/client.schemas";
+import { Tag } from "../../api/client.schemas";
 import { useTagsList } from "../../api/client";
 import { TagInput } from "./TagInput";
 import toast from "react-hot-toast";

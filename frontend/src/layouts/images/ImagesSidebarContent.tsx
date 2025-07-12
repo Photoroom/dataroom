@@ -7,8 +7,6 @@ import { SelectImagesForm } from "./SelectImagesForm";
 import { RandomModeForm } from "./RandomModeForm";
 import { SearchForm } from "./SearchForm";
 import { Filters } from "./Filters";
-import { useSearchParams } from "react-router-dom";
-
 export const ImagesSidebarContent: React.FC = function () {
   const {
     mode,
@@ -19,7 +17,6 @@ export const ImagesSidebarContent: React.FC = function () {
     filters,
     setFilters,
   } = useImageListData();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [isSearchOpen, setIsSearchOpen] = useState(mode === ImageListMode.SIMILAR);
   const [isFilterOpen, setIsFilterOpen] = useState(() => {

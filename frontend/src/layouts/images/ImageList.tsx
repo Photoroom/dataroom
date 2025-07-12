@@ -29,7 +29,7 @@ export const ImageList: React.FC = function () {
   const mainDivRef = useRef(null);
   useEffect(() => {
     const div = mainDivRef.current as HTMLDivElement | null;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     const handleScroll = () => {
       if (

@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import { ImageListDataProvider } from "../context/ImageListDataContext";
 import { SidebarProvider, SidebarActiveNav } from "../context/SidebarContext";
 import { Drawer } from "./drawer/Drawer";
@@ -9,10 +10,10 @@ import { DatasetDrawerProvider } from "../context/DatasetDrawerContext";
 
 interface MainLayoutProps {
   sidebarActiveNav: SidebarActiveNav;
-  sidebarContent: React.ReactNode;
-  drawerContent: React.ReactNode;
-  useDrawer: () => any;
-  children: React.ReactNode;
+  sidebarContent: ReactNode;
+  drawerContent: ReactNode;
+  useDrawer: () => { isOpen: boolean; setIsOpen: (isOpen: boolean) => void };
+  children: ReactNode;
 }
 
 

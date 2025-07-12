@@ -30,7 +30,7 @@ interface TokenFormProps {
 
 const TokenForm: React.FC<TokenFormProps> = ({ token, refetchTokens }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const {mutate: deleteToken, isPending: isDeletingToken} = useTokensDestroy();
+  const {mutate: deleteToken} = useTokensDestroy();
   const {mutate: updateToken, isPending: isUpdatingToken} = useTokensUpdate();
 
   const handleDeleteToken = () => {
@@ -40,7 +40,7 @@ const TokenForm: React.FC<TokenFormProps> = ({ token, refetchTokens }) => {
           refetchTokens();
           toast.success("API token deleted");
         },
-        onError: (error) => {
+        onError: () => {
           toast.error("Failed to delete API token");
         },
       });
@@ -53,7 +53,7 @@ const TokenForm: React.FC<TokenFormProps> = ({ token, refetchTokens }) => {
         refetchTokens();
         toast.success("API token updated");
       },
-      onError: (error) => {
+      onError: () => {
         toast.error("Failed to update API token");
       },
     });
@@ -106,7 +106,7 @@ export const SettingsPage: React.FC = function () {
         refetchTokens();
         toast.success("API token created");
       },
-      onError: (error) => {
+      onError: () => {
         toast.error("Failed to create API token");
       },
     });

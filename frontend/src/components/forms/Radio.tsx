@@ -1,5 +1,4 @@
 import React from "react";
-import { CheckIcon } from "@heroicons/react/20/solid";
 import { twMerge } from "tailwind-merge";
 
 interface RadioProps {

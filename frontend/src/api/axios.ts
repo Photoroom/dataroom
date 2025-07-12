@@ -24,7 +24,7 @@ export const axiosInstance = <T>(
     cancelToken: source.token,
   }).then(({data}) => data);
 
-  // @ts-ignore
+  // @ts-expect-error Promise type doesn't include cancel property, but we're extending it
   promise.cancel = () => {
     source.cancel('Query was cancelled');
   };
