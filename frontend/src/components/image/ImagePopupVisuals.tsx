@@ -33,15 +33,18 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
   onToggleSegment,
   onSetHoveredSegments,
 }) => {
+  // Cast segments to correct type: the generated schema incorrectly defines segments as number[][],
+  // but the backend actually returns number[][][] (array of 2D segment masks)
+  const segments = segmentationData?.segments as unknown as number[][][];
 
   // -------------------- Draw segments --------------------
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const imageDataCache = useRef<Map<number, ImageData>>(new Map());
 
   useEffect(() => {
-    if (!segmentationData || !width || !height) return;
-
-    segmentationData.segments.forEach((segment, segmentIndex) => {
+    if (!segmentationData || !width || !height || !segments) return;
+    
+    segments.forEach((segment, segmentIndex) => {
       const canvas = canvasRefs.current.get(segmentIndex);
       if (!canvas) return;
 
@@ -109,8 +112,8 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     const y = (e.clientY - rect.top) / rect.height;
 
     // Convert coordinates to segment space
-    const segmentX = Math.floor(x * segmentationData.segments[0][0].length);
-    const segmentY = Math.floor(y * segmentationData.segments[0].length);
+    const segmentX = Math.floor(x * segments[0][0].length);
+    const segmentY = Math.floor(y * segments[0].length);
 
     return { segmentX, segmentY };
   };
@@ -127,7 +130,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     // Check which segments are under the cursor
     let changed = false;
     const newHoveredSegments = new Set<number>();
-    segmentationData!.segments.forEach((segment, index) => {
+    segments.forEach((segment, index) => {
       if (segment[coords.segmentY]?.[coords.segmentX] > 0) {
         newHoveredSegments.add(index);
         if (!hoveredSegments.has(index)) changed = true;
@@ -151,7 +154,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     const coords = getSegmentCoordinates(e);
     if (!coords) return;
 
-    segmentationData!.segments.forEach((segment, index) => {
+    segments.forEach((segment, index) => {
       if (segment[coords.segmentY]?.[coords.segmentX] > 0) {
         onToggleSegment(index);
       }
@@ -179,7 +182,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
         alt=""
         className="size-full pointer-events-none"
       />
-      {segmentationData?.segments.map((_, index) => (
+      {segments?.map((_, index) => (
         <canvas
           key={index}
           ref={el => {

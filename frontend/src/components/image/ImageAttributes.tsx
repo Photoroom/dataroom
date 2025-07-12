@@ -18,7 +18,7 @@ export const ImageAttributes: React.FC<ImageAttributesProps> = ({ image }) => {
               {image.attributes && Object.entries(image.attributes).map(([key, value]) => (
                 <React.Fragment key={key}>
                   <p className="text-sm break-all col-span-2">{key}</p>
-                  <p className="text-sm break-all col-span-3">{defaultValue(value)}</p>
+                  <p className="text-sm break-all col-span-3">{defaultValue(value) as React.ReactNode}</p>
                 </React.Fragment>
               ))}
               {!image.attributes || Object.keys(image.attributes).length === 0 && (
