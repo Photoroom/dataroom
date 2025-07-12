@@ -111,5 +111,9 @@
   "include": [
     "frontend/src",
     "frontend/styles"
+  ],
+  "exclude": [
+    "frontend/src/api/client.ts",
+    "frontend/src/api/client.schemas.ts"
   ]
 }
