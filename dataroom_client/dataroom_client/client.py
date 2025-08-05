@@ -929,8 +929,10 @@ class DataRoomClient:
         """
         if not image_file and not image_url:
             raise DataRoomError('Please provide either an "image_file" or "image_url" field')
+
         if not image_id and not image_url:
             raise DataRoomError('Please provide either an "image_id" or "image_url" field')
+
         if not source:
             raise DataRoomError('Please provide a "source" field')
 
@@ -1137,6 +1139,7 @@ class DataRoomClient:
             image.setdefault('coca_embedding', None)
             image.setdefault('related_images', None)
             image.setdefault('datasets', None)
+
         return await self._make_request(
             url=f"images/bulk_update/",
             method="PUT",
@@ -1442,6 +1445,7 @@ class DataRoomClient:
             )
         else:
             raise DataRoomError("Invalid arguments")
+
     async def get_related_images(
         self,
         image_id: str,
@@ -1555,6 +1559,7 @@ class DataRoomClient:
                 "coca_embedding": vector,
             },
         )
+
     async def aggregate_images(self, field, type) -> dict:
         """
         Performs an aggregation operation on a specified field across all images.
@@ -1571,6 +1576,7 @@ class DataRoomClient:
                 "type": type,
             },
         )
+
     async def bucket_images(self, field, size) -> list[dict]:
         """
         Groups images into buckets based on a specified field and bucket size.
@@ -1696,6 +1702,7 @@ class DataRoomClient:
                 "description": description if description else "",
             },
         )
+
     async def freeze_dataset(self, slug_version: str) -> dict:
         """
         Freezes a dataset version, making it immutable.
@@ -1707,6 +1714,7 @@ class DataRoomClient:
             url=f"datasets/{slug_version}/freeze/",
             method="POST",
         )
+
     async def unfreeze_dataset(self, slug_version: str) -> dict:
         """
         Unfreezes a dataset version, making it mutable again.
@@ -1810,9 +1818,10 @@ class AsyncRunner:
             logger.debug("Shutting down ClassAsyncRunner background thread...")
             cls._loop.call_soon_threadsafe(cls._loop.stop)
             # It's good practice to have a timeout on join
-            cls._thread.join(timeout=5) 
+            cls._thread.join(timeout=5)
             cls._loop.close()
             logger.debug("ClassAsyncRunner has been shut down.")
+
         cls._loop = None
         cls._thread = None
 
