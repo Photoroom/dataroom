@@ -866,6 +866,7 @@ class DataRoomClient:
         exclude_fields: list[str] = None,
         all_fields: bool = False,
         return_latents: list[str] = None,
+        fetch_image_bytes: bool = False,
     ) -> dict:
         """
         Retrieves a single image by its ID.
@@ -876,9 +877,10 @@ class DataRoomClient:
         @param exclude_fields: A list of fields to exclude from the response.
         @param all_fields: If True and `fields` is None, returns all available fields for each image.
         @param return_latents: A list of latent types to return for the image.
+        @param fetch_image_bytes: whether to return the image bytes or not. Will query `image_direct_url`.
         @return: A dictionary representing the image.
         """
-        return await self._make_request(
+        response = await self._make_request(
             url=f"images/{image_id}/",
             params=self._dict_filter_none({
                 "fields": ",".join(fields) if fields else None,
@@ -888,6 +890,12 @@ class DataRoomClient:
                 "return_latents": ",".join(return_latents) if return_latents else None,
             }),
         )
+        if fetch_image_bytes:
+            assert "image_direct_url" in response
+            image_bytes_response = await self.client.request(method="GET", url=response["image_direct_url"])
+            image_bytes_response.raise_for_status()
+            response["image_bytes"] = image_bytes_response.content
+        return response
 
     async def create_image(
         self,
@@ -921,10 +929,10 @@ class DataRoomClient:
         """
         if not image_file and not image_url:
             raise DataRoomError('Please provide either an "image_file" or "image_url" field')
-        
+
         if not image_id and not image_url:
             raise DataRoomError('Please provide either an "image_id" or "image_url" field')
-        
+
         if not source:
             raise DataRoomError('Please provide a "source" field')
 
@@ -1131,7 +1139,7 @@ class DataRoomClient:
             image.setdefault('coca_embedding', None)
             image.setdefault('related_images', None)
             image.setdefault('datasets', None)
-        
+
         return await self._make_request(
             url=f"images/bulk_update/",
             method="PUT",
@@ -1437,7 +1445,7 @@ class DataRoomClient:
             )
         else:
             raise DataRoomError("Invalid arguments")
-        
+
     async def get_related_images(
         self,
         image_id: str,
@@ -1551,7 +1559,7 @@ class DataRoomClient:
                 "coca_embedding": vector,
             },
         )
-    
+
     async def aggregate_images(self, field, type) -> dict:
         """
         Performs an aggregation operation on a specified field across all images.
@@ -1568,7 +1576,7 @@ class DataRoomClient:
                 "type": type,
             },
         )
-    
+
     async def bucket_images(self, field, size) -> list[dict]:
         """
         Groups images into buckets based on a specified field and bucket size.
@@ -1694,7 +1702,7 @@ class DataRoomClient:
                 "description": description if description else "",
             },
         )
-    
+
     async def freeze_dataset(self, slug_version: str) -> dict:
         """
         Freezes a dataset version, making it immutable.
@@ -1706,7 +1714,7 @@ class DataRoomClient:
             url=f"datasets/{slug_version}/freeze/",
             method="POST",
         )
-    
+
     async def unfreeze_dataset(self, slug_version: str) -> dict:
         """
         Unfreezes a dataset version, making it mutable again.
@@ -1810,10 +1818,10 @@ class AsyncRunner:
             logger.debug("Shutting down ClassAsyncRunner background thread...")
             cls._loop.call_soon_threadsafe(cls._loop.stop)
             # It's good practice to have a timeout on join
-            cls._thread.join(timeout=5) 
+            cls._thread.join(timeout=5)
             cls._loop.close()
             logger.debug("ClassAsyncRunner has been shut down.")
-        
+
         cls._loop = None
         cls._thread = None
 
