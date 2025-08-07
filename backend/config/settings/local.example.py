@@ -10,7 +10,7 @@ ENABLE_DEBUG_TOOLBAR = False
 
 # FRONTEND
 # ------------------------------------------------------------------------------
-DJANGO_VITE_DEV_MODE = DEBUG
+DJANGO_VITE_DEV_MODE = False
 
 
 # SECURITY

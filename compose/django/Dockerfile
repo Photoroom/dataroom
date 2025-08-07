@@ -22,7 +22,7 @@ COPY ./frontend ./frontend
 COPY ./backend ./backend
 # Install application into container
 RUN npm install
-RUN npm run build
+RUN NODE_ENV=production npm run build
 
 
 FROM base AS runtime
