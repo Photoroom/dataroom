@@ -17,7 +17,10 @@ export default defineConfig({
     outDir:  '../backend/static_built/', // same as DJANGO_VITE_ASSETS_PATH
   },
   plugins: [
-    // react({fastRefresh: false}),
+    react({
+      // Enable fast refresh only in development
+      fastRefresh: process.env.NODE_ENV !== 'production'
+    }),
     {
       name: 'watch-external', // https://stackoverflow.com/questions/63373804/rollup-watch-include-directory/63548394#63548394
       async buildStart(){

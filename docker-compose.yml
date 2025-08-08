@@ -24,7 +24,7 @@ services:
       dockerfile: ./compose/django/Dockerfile
 
     image: dataroom_django
-    command: ./scripts/run_web.sh
+    command: python manage.py runserver 0.0.0.0:8000  # use django dev server for local development
     env_file:
       - ./.env
     environment:
@@ -63,6 +63,7 @@ services:
       - discovery.type=single-node
       - plugins.security.disabled=true
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=DevOnly-pass43431
+      - _JAVA_OPTIONS=-XX:UseSVE=0  # required to run on Apple Silicon
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     ports:

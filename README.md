@@ -12,112 +12,130 @@ To try it out, follow the guide below. Also check out the Python client inside [
 
 The simplest and fastest way to get a Dataroom stack up and running is to use Docker. If you prefer to run it without Docker, see section [Setup without Docker](#setup-without-docker).
 
-```
+```bash
 cp .env.example .env
 cp backend/config/settings/local.example.py backend/config/settings/local.py
 ```
 
-```
+### Build and Start Services
+
+The following command builds and starts the Django, Postgres and OpenSearch containers:
+```bash
 docker compose up -d --build
 ```
 
-**Run initial migrations**
-
-```
-docker compose run --rm dataroom_django python manage.py migrate
-```
-
-**Collect static**
-
-```
+### Collect Static Files
+The static files are built as part of the Django docker. To collect them, we run:
+```bash
 docker compose run --rm dataroom_django python manage.py collectstatic --link --clear --noinput
 ```
 
-**Create admin user**
+### Run Database Migrations
 
-```
-docker compose run --rm dataroom_django python manage.py createsuperuser
-```
-
-### Run development server
-
-```
-docker compose run --service-ports dataroom_django python manage.py runserver 0.0.0.0:8000
+```bash
+docker compose run --rm dataroom_django python manage.py migrate
 ```
 
-### Run production server
+### Setup OpenSearch Indices
 
-```
-docker compose run --service-ports dataroom_django ./scripts/run_web.sh
-docker compose run --service-ports dataroom_django ./scripts/run_tasks.sh
-```
-
-### Run tests
-
-```
-docker compose run --rm dataroom_django pytest
+```bash
+docker compose run --rm dataroom_django python manage.py setup_opensearch --confirm
 ```
 
-### Useful commands
+### Create admin user
 
-```
-docker compose exec dataroom_postgres bash -c "su postgres -c 'dropdb dataroom && createdb dataroom'"
-```
-
-## Frontend setup
-
-Install the project's version of node defined in `.nvmrc`:
-
-```
-nvm install
+```bash
+docker compose run --rm dataroom_django python manage.py createsuperuser --noinput --email admin@photoroom.dev
 ```
 
-Use the correct version of node:
+### Access the application
+Go to http://localhost:8000 and login with `admin@photoroom.dev` / `admin`
 
-```
-nvm use
+Quick overview:
+- **Full Application**: http://localhost:8000 (Django serves pre-built React frontend)
+- **Django Admin**: http://localhost:8000/admin/
+- **API Docs**: http://localhost:8000/api/docs/
+- **OpenSearch**: http://localhost:9200
+
+## Local Development
+
+For active frontend development with instant Hot Module Replacement (HMR):
+
+### Prerequisites
+- Node.js 22.14.0: `nvm use 22.14.0`
+- npm 10.9.2
+
+### Setup
+
+**1. Install Node.js version from `.nvmrc`:**
+```bash
+nvm install && nvm use
 ```
 
-Install dependencies:
-
-```
+**2. Install frontend dependencies:**
+```bash
 npm install
 ```
 
-## Development setup
+**3. Enable development mode in Django settings.**
 
-Install pre-commit hooks:
-
+Update `backend/config/settings/local.py`:
+```python
+# FRONTEND
+# ------------------------------------------------------------------------------
+DJANGO_VITE_DEV_MODE = True
 ```
+
+**4. Start frontend dev server locally:**
+```bash
+npm run dev  # Runs on port 3000
+
+# For port conflicts, override the port:
+npm run dev -- --port 3001  # or any available port
+```
+
+**5. Rebuild and start Django, Postgres and OpenSearch containers:**
+```bash
+docker compose up -d --build
+```
+See [Backend setup](#backend-setup) if you like to run the Django backend locally without Docker.
+
+### Run Tests
+Run all the backend tests inside of the Django docker:
+```bash
+docker compose run --rm dataroom_django pytest
+```
+
+### Pre-commit Hooks
+Please install the pre-commit hooks for maintaining code quality:
+```bash
 pre-commit install --hook-type pre-commit
 ```
 
-## Running
-
-Run the backend with auto-reload:
-
-```
-python manage.py runserver
+### Other Useful Commands
+Run production server:
+```bash
+docker compose run --service-ports dataroom_django ./scripts/run_web.sh
 ```
 
-Run the frontend with auto-reload:
-
-```
-npm run dev
-```
-
-Run Tasks:
-
-```
-python -m backend.task_runner.run --settings local
+Run production background tasks:
+```bash
+docker compose run --service-ports dataroom_django ./scripts/run_tasks.sh
 ```
 
-### Running tests
-
-To run backend tests:
-
+Reset database:
+```bash
+docker compose exec dataroom_postgres bash -c "su postgres -c 'dropdb dataroom && createdb dataroom'"
 ```
-pytest
+
+View logs:
+```bash
+docker compose logs -f dataroom_django
+```
+
+Restart specific service:
+```bash
+docker compose restart opensearch
 ```
 
 ### Static files in production
