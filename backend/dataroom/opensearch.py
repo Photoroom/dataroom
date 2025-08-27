@@ -2,10 +2,10 @@ import os
 from collections import namedtuple
 
 import boto3
-from aws_requests_auth.aws_auth import AWSRequestsAuth
 from django.conf import settings
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from opensearchpy.helpers import bulk
+from requests_aws4auth import AWS4Auth
 
 
 class OSClass:
@@ -28,8 +28,6 @@ class OSClass:
 
     def __init__(self):
         self.boto_session = None
-        self.boto_credentials = None
-        self.awsauth = None
         self.connection_pool_size = 120
 
         if settings.AWS_OPEN_SEARCH_UNAUTHENTICATED_REQUESTS or os.environ.get('IS_BUILD_PROCESS', False):
@@ -37,24 +35,37 @@ class OSClass:
             self.client = OpenSearch(
                 hosts=settings.AWS_OPEN_SEARCH_URL,
                 maxsize=self.connection_pool_size,
+                timeout=60,
             )
         else:
-            # set up the auth
-            self.boto_session = boto3.Session(
-                aws_access_key_id=settings.AWS_OPEN_SEARCH_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_OPEN_SEARCH_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_OPEN_SEARCH_REGION_NAME,
+            # Check if explicit credentials are provided in settings
+            has_explicit_credentials = (
+                hasattr(settings, 'AWS_OPEN_SEARCH_ACCESS_KEY_ID')
+                and hasattr(settings, 'AWS_OPEN_SEARCH_SECRET_ACCESS_KEY')
+                and settings.AWS_OPEN_SEARCH_ACCESS_KEY_ID
+                and settings.AWS_OPEN_SEARCH_SECRET_ACCESS_KEY
             )
-            self.boto_credentials = self.boto_session.get_credentials().get_frozen_credentials()
-            self.host = settings.AWS_OPEN_SEARCH_URL.split('//')[1].split(':')[0]
-            self.awsauth = AWSRequestsAuth(
-                aws_access_key=self.boto_credentials.access_key,
-                aws_secret_access_key=self.boto_credentials.secret_key,
-                aws_token=self.boto_credentials.token,
-                aws_host=self.host,
-                aws_region=settings.AWS_OPEN_SEARCH_REGION_NAME,
-                aws_service='es',
+
+            if has_explicit_credentials:
+                # Use explicit credentials with auto-refresh
+                self.boto_session = boto3.Session(
+                    aws_access_key_id=settings.AWS_OPEN_SEARCH_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_OPEN_SEARCH_SECRET_ACCESS_KEY,
+                    region_name=settings.AWS_OPEN_SEARCH_REGION_NAME,
+                )
+                credentials = self.boto_session.get_credentials()
+            else:
+                # Use default credential chain (IAM roles, env vars, etc.)
+                self.boto_session = boto3.Session(
+                    region_name=settings.AWS_OPEN_SEARCH_REGION_NAME,
+                )
+                credentials = self.boto_session.get_credentials()
+
+            # Set up AWS4Auth with refreshable credentials
+            self.awsauth = AWS4Auth(
+                refreshable_credentials=credentials, region=settings.AWS_OPEN_SEARCH_REGION_NAME, service='es'
             )
+
             # Create the OpenSearch client
             self.client = OpenSearch(
                 hosts=settings.AWS_OPEN_SEARCH_URL,
@@ -63,6 +74,7 @@ class OSClass:
                 use_ssl=True,
                 verify_certs=True,
                 maxsize=self.connection_pool_size,
+                timeout=60,
             )
 
 

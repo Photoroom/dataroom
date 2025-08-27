@@ -11,19 +11,18 @@ import { DatasetsLayout } from "./layouts/DatasetsLayout";
 import { DatasetListPage } from "./pages/DatasetListPage";
 import { DatasetDetailPage } from "./pages/DatasetDetailPage";
 
-
 const page = (title?: string, existingLoader?: LoaderFunction) => {
   // Add a loader to set the document title
   const loader: LoaderFunction = async (...args) => {
     document.title = title ? title + " - DataRoom" : "DataRoom";
-    
+
     // If there's an existing loader, call it with the same arguments
     if (existingLoader) {
       return await existingLoader(...args);
     }
     return null;
   };
-  
+
   return { loader };
 };
 
@@ -75,16 +74,16 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <PageLayout/>,
-        errorElement: <ErrorPage/>,
+        element: <PageLayout />,
+        errorElement: <ErrorPage />,
         children: [
           {
             path: "settings",
-            element: <SettingsPage/>,
+            element: <SettingsPage />,
             ...page("Settings"),
           },
-        ]
-      }
+        ],
+      },
     ],
   },
 ]);

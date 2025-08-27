@@ -13,7 +13,10 @@ export const PageLayout: React.FC = () => {
             <Logo />
             <h1 className="text-lg block font-bold">Settings</h1>
           </div>
-          <Link to={URLS.IMAGE_LIST()} className="text-sm justify-self-end mr-4 shrink-0 hover:underline"><ChevronLeftIcon className="size-4 inline mr-1" />Back to Images</Link>
+          <Link to={URLS.IMAGE_LIST()} className="text-sm justify-self-end mr-4 shrink-0 hover:underline">
+            <ChevronLeftIcon className="size-4 inline mr-1" />
+            Back to Images
+          </Link>
         </div>
       </header>
       <main>

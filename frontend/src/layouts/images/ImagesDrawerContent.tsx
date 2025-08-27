@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useImageDrawer } from "../../context/ImageDrawerContext";
 import { ImagePreview } from "../../components/image/ImagePreview";
 import { ImageDetails } from "../../components/image/ImageDetails";
@@ -13,7 +13,7 @@ export const ImagesDrawerContent: React.FC = function () {
   const { imageId, image } = useImageDrawer();
 
   // we need a fixed drawer width to calculate the image height
-  const drawerImgWidth = 320 - 12;  // drawer width - scrollbar width
+  const drawerImgWidth = 320 - 12; // drawer width - scrollbar width
 
   // -------------------- Render --------------------
   return (

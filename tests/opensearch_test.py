@@ -177,12 +177,12 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
     await DataRoom.tag_images(image_ids=[image_logo.id], tag_names=['red', 'green'])
 
     # define attributes
-    await sync_to_async(AttributesField.objects.create)(name="name", field_type="string")
-    await sync_to_async(AttributesField.objects.create)(name="approved", field_type="boolean", is_required=True)
-    await sync_to_async(AttributesField.objects.create)(name="date", field_type="string", string_format="date-time")
-    await sync_to_async(AttributesField.objects.create)(name="some_number", field_type="number", enum_choices=[1, 2, 3])
-    await sync_to_async(AttributesField.objects.create)(name="disabled", field_type="string", is_enabled=False)
-    await sync_to_async(AttributesField.objects.create)(name="numbers", field_type="array", array_type="number")
+    await sync_to_async(AttributesField.objects.create)(name="name", field_type="string", is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name="approved", field_type="boolean", is_required=True, is_indexed=False)
+    await sync_to_async(AttributesField.objects.create)(name="date", field_type="string", string_format="date-time", is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name="some_number", field_type="number", enum_choices=[1, 2, 3], is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name="disabled", field_type="string", is_enabled=False, is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name="numbers", field_type="array", array_type="number", is_indexed=True)
     # force invalidate cache
     AttributesSchema.invalidate_cache()
     # add some attributes
@@ -242,7 +242,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
         "latent_example_latent_file": 'images/test-logo/latent_example_latent.txt',
         "latent_example_mask_file": 'images/test-logo/latent_example_mask.png',
         "attr_name_text": "my name",
-        "attr_approved_boolean": True,
+        "attr_noidx_approved_boolean": True,
         "attr_date_date": "2000-01-01T00:00:00Z",
         "attr_some_number_double": 2,
         "attr_numbers_double": [1, 2, 3],
@@ -335,7 +335,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
     assert es_doc == {
         "id": "test-logo",
         "attr_name_text": "my name",
-        "attr_approved_boolean": True,
+        "attr_noidx_approved_boolean": True,
         "attr_date_date": "2000-01-01T00:00:00Z",
         "attr_some_number_double": 2,
         "attr_numbers_double": [1, 2, 3],

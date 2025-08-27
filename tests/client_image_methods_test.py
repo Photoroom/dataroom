@@ -54,8 +54,8 @@ async def test_aggregate_images(DataRoom, image_logo, image_girl, image_perfume)
 @pytest.mark.django_db
 async def test_aggregate_images_on_attributes(DataRoom, image_logo, image_girl, image_perfume):
     AttributesSchema.invalidate_cache()  # force invalidate cache from other tests
-    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string')
-    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number')
+    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string', is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number', is_indexed=True)
 
     await DataRoom.update_image(image_id=image_logo.id, attributes={'color': 'blue', 'number': 3})
     await DataRoom.update_image(image_id=image_girl.id, attributes={'color': 'red', 'number': 6})
@@ -96,8 +96,8 @@ async def test_aggregate_images_wrong_field(DataRoom, image_logo, image_girl, im
 @pytest.mark.django_db
 async def test_aggregate_images_wrong_field_type(DataRoom, image_logo, image_girl, image_perfume):
     AttributesSchema.invalidate_cache()  # force invalidate cache from other tests
-    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string')
-    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number')
+    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string', is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number', is_indexed=True)
 
     await DataRoom.update_image(image_id=image_logo.id, attributes={'color': 'blue', 'number': 3})
 
@@ -129,12 +129,20 @@ async def test_bucket_images(DataRoom, image_logo, image_girl, image_perfume):
 @pytest.mark.django_db
 async def test_bucket_images_on_attributes(DataRoom, image_logo, image_girl, image_perfume):
     AttributesSchema.invalidate_cache()  # force invalidate cache from other tests
-    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string')
-    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number')
+    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string', is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name='color_noidx', field_type='string', is_indexed=False)
+    await sync_to_async(AttributesField.objects.create)(name='number', field_type='number', is_indexed=True)
+    await sync_to_async(AttributesField.objects.create)(name='number_noidx', field_type='number', is_indexed=False)
 
-    await DataRoom.update_image(image_id=image_logo.id, attributes={'color': 'blue', 'number': 3})
-    await DataRoom.update_image(image_id=image_girl.id, attributes={'color': 'red', 'number': 6})
-    await DataRoom.update_image(image_id=image_perfume.id, attributes={'color': 'red', 'number': 6})
+    await DataRoom.update_image(
+        image_id=image_logo.id, attributes={'color': 'blue', 'color_noidx': 'blue', 'number': 3, 'number_noidx': 3}
+    )
+    await DataRoom.update_image(
+        image_id=image_girl.id, attributes={'color': 'red', 'color_noidx': 'red', 'number': 6, 'number_noidx': 6}
+    )
+    await DataRoom.update_image(
+        image_id=image_perfume.id, attributes={'color': 'red', 'color_noidx': 'red', 'number': 6, 'number_noidx': 6}
+    )
 
     response = await DataRoom.bucket_images(field='attributes.color', size=10)
     assert response == {
@@ -143,5 +151,36 @@ async def test_bucket_images_on_attributes(DataRoom, image_logo, image_girl, ima
         "buckets": [
             {"key": "red", "doc_count": 2},
             {"key": "blue", "doc_count": 1},
+        ],
+    }
+
+    response = await DataRoom.bucket_images(field='attributes.number', size=10)
+    assert response == {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+            {"key": 6.0, "doc_count": 2},
+            {"key": 3.0, "doc_count": 1},
+        ],
+    }
+
+    # aggregating on non-indexed attributes is still supported
+    response = await DataRoom.bucket_images(field='attributes.color_noidx', size=10)
+    assert response == {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+            {"key": "red", "doc_count": 2},
+            {"key": "blue", "doc_count": 1},
+        ],
+    }
+
+    response = await DataRoom.bucket_images(field='attributes.number_noidx', size=10)
+    assert response == {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+            {"key": 6.0, "doc_count": 2},
+            {"key": 3.0, "doc_count": 1},
         ],
     }

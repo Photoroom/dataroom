@@ -1,14 +1,14 @@
 /* fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;&display=swap");
 
 /* tailwind */
-@import 'tailwindcss';
-@import './theme.css';
+@import "tailwindcss";
+@import "./theme.css";
 
 /* custom */
-@import './base.css';
-@import './container.css';
-@import './buttons.css';
+@import "./base.css";
+@import "./container.css";
+@import "./buttons.css";
 
 @plugin '@tailwindcss/typography';
 @plugin '@tailwindcss/forms';

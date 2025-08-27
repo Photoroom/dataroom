@@ -18,7 +18,7 @@ interface ImagePopupVisualsProps {
   onSetHoveredSegments: (segments: Set<number>) => void;
 }
 
-export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({ 
+export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
   width,
   height,
   image,
@@ -26,26 +26,28 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
   masks,
   selectedMasks,
   // segments
-  isLoadingSegmentation,
   segmentationData,
   selectedSegments,
   hoveredSegments,
   onToggleSegment,
   onSetHoveredSegments,
 }) => {
+  // Cast segments to correct type: the generated schema incorrectly defines segments as number[][],
+  // but the backend actually returns number[][][] (array of 2D segment masks)
+  const segments = segmentationData?.segments as unknown as number[][][];
 
   // -------------------- Draw segments --------------------
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const imageDataCache = useRef<Map<number, ImageData>>(new Map());
 
   useEffect(() => {
-    if (!segmentationData || !width || !height) return;
+    if (!segmentationData || !width || !height || !segments) return;
 
-    segmentationData.segments.forEach((segment, segmentIndex) => {
+    segments.forEach((segment, segmentIndex) => {
       const canvas = canvasRefs.current.get(segmentIndex);
       if (!canvas) return;
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
       // Create ImageData for this segment
@@ -62,7 +64,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
           const segmentX = Math.floor(x / scaleX);
           const segmentY = Math.floor(y / scaleY);
           const alpha = segment[segmentY]?.[segmentX] || 0;
-          
+
           const pixelIndex = (y * width + x) * 4;
           imageData.data[pixelIndex] = r;
           imageData.data[pixelIndex + 1] = g;
@@ -80,7 +82,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
   // Restore canvas contents after React updates
   useEffect(() => {
     canvasRefs.current.forEach((canvas, segmentIndex) => {
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       const imageData = imageDataCache.current.get(segmentIndex);
       if (ctx && imageData) {
         ctx.putImageData(imageData, 0, 0);
@@ -99,8 +101,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     if (!rect) return null;
 
     // Check if mouse is within image bounds
-    if (e.clientX < rect.left || e.clientX > rect.right || 
-        e.clientY < rect.top || e.clientY > rect.bottom) {
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
       return null;
     }
 
@@ -109,8 +110,8 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     const y = (e.clientY - rect.top) / rect.height;
 
     // Convert coordinates to segment space
-    const segmentX = Math.floor(x * segmentationData.segments[0][0].length);
-    const segmentY = Math.floor(y * segmentationData.segments[0].length);
+    const segmentX = Math.floor(x * segments[0][0].length);
+    const segmentY = Math.floor(y * segments[0].length);
 
     return { segmentX, segmentY };
   };
@@ -127,7 +128,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     // Check which segments are under the cursor
     let changed = false;
     const newHoveredSegments = new Set<number>();
-    segmentationData!.segments.forEach((segment, index) => {
+    segments.forEach((segment, index) => {
       if (segment[coords.segmentY]?.[coords.segmentX] > 0) {
         newHoveredSegments.add(index);
         if (!hoveredSegments.has(index)) changed = true;
@@ -151,7 +152,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
     const coords = getSegmentCoordinates(e);
     if (!coords) return;
 
-    segmentationData!.segments.forEach((segment, index) => {
+    segments.forEach((segment, index) => {
       if (segment[coords.segmentY]?.[coords.segmentX] > 0) {
         onToggleSegment(index);
       }
@@ -166,20 +167,15 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       style={{
-        cursor: hoveredSegments.size > 0 ? 'pointer' : 'default',
+        cursor: hoveredSegments.size > 0 ? "pointer" : "default",
         width: width,
         height: height,
-        backgroundSize: 'contain',
+        backgroundSize: "contain",
         backgroundImage: `url('${image?.thumbnail}')`, // use thumbnail for faster previews
       }}
     >
-      <img
-        ref={imageRef}
-        src={image.image}
-        alt=""
-        className="size-full pointer-events-none"
-      />
-      {segmentationData?.segments.map((_, index) => (
+      <img ref={imageRef} src={image.image} alt="" className="size-full pointer-events-none" />
+      {segments?.map((_, index) => (
         <canvas
           key={index}
           ref={el => {
@@ -190,11 +186,11 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
             }
           }}
           className="absolute top-0 left-0 max-w-full max-h-full"
-          style={{ 
-            mixBlendMode: 'multiply',
-            display: selectedSegments.has(index) ? 'block' : 'none',
-            objectFit: 'contain',
-            opacity: hoveredSegments.has(index) ? 0.8 : 0.5
+          style={{
+            mixBlendMode: "multiply",
+            display: selectedSegments.has(index) ? "block" : "none",
+            objectFit: "contain",
+            opacity: hoveredSegments.has(index) ? 0.8 : 0.5,
           }}
         />
       ))}
@@ -205,7 +201,7 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
           alt=""
           className="absolute top-0 left-0 max-w-full max-h-full object-contain"
           style={{
-            display: selectedMasks.has(mask.latent_type) ? 'block' : 'none',
+            display: selectedMasks.has(mask.latent_type) ? "block" : "none",
             opacity: 0.5,
             width: width,
             height: height,
@@ -216,13 +212,8 @@ export const ImagePopupVisuals: React.FC<ImagePopupVisualsProps> = ({
   );
 };
 
-
 function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return [0, 0, 0];
-  return [
-    parseInt(result[1], 16),
-    parseInt(result[2], 16),
-    parseInt(result[3], 16)
-  ];
+  return [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)];
 }

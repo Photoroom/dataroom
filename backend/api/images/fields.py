@@ -79,13 +79,14 @@ class OSImageOrAttributeField(serializers.CharField):
             attr_name = value.split('.')[1]
             try:
                 os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+                is_indexed = AttributesSchema.get_is_indexed_for_field_name(attr_name)
             except AttributesFieldNotFoundError as e:
                 raise serializers.ValidationError(f'Field "{value}" not found in attributes schema') from e
             else:
-                attr = OSAttribute(name=attr_name, value=None, os_type=os_type)
+                attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=is_indexed)
                 return attr.os_name_keyword
         elif value not in OSImage.all_class_fields:
-            raise serializers.ValidationError(f'Field "{value}" is not a valid field')
+            raise serializers.ValidationError(f'"{value}" is not a valid field')
         return value
 
 

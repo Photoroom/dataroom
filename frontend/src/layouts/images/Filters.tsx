@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { ChoiceFilter } from "./ChoiceFilter";
-import { useStatsAttributesList, useStatsImageAspectRatioFractionsRetrieve, useStatsImageSourcesRetrieve, useStatsLatentTypesList, useTagsList } from "../../api/client";
+import {
+  useDatasetsList,
+  useStatsAttributesList,
+  useStatsImageAspectRatioFractionsRetrieve,
+  useStatsImageSourcesRetrieve,
+  useStatsLatentTypesList,
+  useTagsList,
+} from "../../api/client";
 import toast from "react-hot-toast";
 import { useImageListData } from "../../context/ImageListDataContext";
 
@@ -29,7 +36,11 @@ export const Filters: React.FC = () => {
 
   // -------------------- Aspect Ratio --------------------
   const [aspectRatio, setAspectRatio] = useState<string | null>(filters.aspect_ratio_fraction);
-  const { data: allAspectRatios, isLoading: isLoadingAspectRatios, isError: isErrorAspectRatios } = useStatsImageAspectRatioFractionsRetrieve();
+  const {
+    data: allAspectRatios,
+    isLoading: isLoadingAspectRatios,
+    isError: isErrorAspectRatios,
+  } = useStatsImageAspectRatioFractionsRetrieve();
 
   useEffect(() => {
     if (isErrorAspectRatios) {
@@ -60,10 +71,20 @@ export const Filters: React.FC = () => {
   // -------------------- Duplicate State --------------------
   const [duplicateState, setDuplicateState] = useState<string | null>(filters.duplicate_state);
   const duplicateStateChoices = [
-    {label: 'Unprocessed', value: 'None'},
-    {label: 'Original', value: '1'},
-    {label: 'Duplicate', value: '2'},
-  ]
+    { label: "Unprocessed", value: "None" },
+    { label: "Original", value: "1" },
+    { label: "Duplicate", value: "2" },
+  ];
+
+  // -------------------- Datasets --------------------
+  const [datasets, setDatasets] = useState<string[]>(filters.datasets);
+  const { data: datasetsResponse, isLoading: isLoadingDatasets, isError: isErrorDatasets } = useDatasetsList();
+
+  useEffect(() => {
+    if (isErrorDatasets) {
+      toast.error("Error loading image datasets");
+    }
+  }, [isErrorDatasets]);
 
   // -------------------- URL --------------------
 
@@ -75,9 +96,10 @@ export const Filters: React.FC = () => {
       has_attributes: attributes.length > 0 ? attributes : [],
       has_latents: latents.length > 0 ? latents : [],
       duplicate_state: duplicateState ? duplicateState : null,
+      datasets: datasets.length > 0 ? datasets : [],
     };
     setFilters(newFilters);
-  }, [sources, tags, aspectRatio, attributes, latents, duplicateState])
+  }, [sources, tags, aspectRatio, attributes, latents, duplicateState, datasets]);
 
   // -------------------- Render --------------------
   return (
@@ -90,18 +112,20 @@ export const Filters: React.FC = () => {
           count,
         }))}
         selected={sources}
-        onChange={(selected) => setSources(selected)}
+        onChange={selected => setSources(selected)}
         allowMultiple={true}
       />
       <ChoiceFilter
         label="Tags"
         isLoading={isLoadingTags}
-        choices={allTags?.results.map((tag) => ({
-          value: tag.name,
-          count: tag.image_count,
-        })) || []}
+        choices={
+          allTags?.results.map(tag => ({
+            value: tag.name,
+            count: tag.image_count,
+          })) || []
+        }
         selected={tags}
-        onChange={(selected) => setTags(selected)}
+        onChange={selected => setTags(selected)}
         allowMultiple={true}
       />
       <ChoiceFilter
@@ -112,29 +136,35 @@ export const Filters: React.FC = () => {
           count,
         }))}
         selected={aspectRatio ? [aspectRatio] : []}
-        onChange={(selected) => setAspectRatio(selected[0])}
+        onChange={selected => setAspectRatio(selected[0])}
         allowMultiple={false}
       />
       <ChoiceFilter
         label="Attributes"
         isLoading={isLoadingAttributes}
-        choices={allAttributes?.map((attribute) => ({
-          value: attribute.name,
-          count: attribute.image_count,
-        })) || []}
+        choices={
+          allAttributes
+            ?.filter(attribute => attribute.field_type !== "object")
+            ?.map(attribute => ({
+              value: attribute.name,
+              count: attribute.image_count,
+            })) || []
+        }
         selected={attributes}
-        onChange={(selected) => setAttributes(selected)}
+        onChange={selected => setAttributes(selected)}
         allowMultiple={true}
       />
       <ChoiceFilter
         label="Latents"
         isLoading={isLoadingLatents}
-        choices={allLatents?.map((latent) => ({
-          value: latent.name,
-          count: latent.image_count,
-        })) || []}
+        choices={
+          allLatents?.map(latent => ({
+            value: latent.name,
+            count: latent.image_count,
+          })) || []
+        }
         selected={latents}
-        onChange={(selected) => setLatents(selected)}
+        onChange={selected => setLatents(selected)}
         allowMultiple={true}
       />
       <ChoiceFilter
@@ -142,8 +172,21 @@ export const Filters: React.FC = () => {
         isLoading={false}
         choices={duplicateStateChoices}
         selected={duplicateState ? [duplicateState] : []}
-        onChange={(selected) => setDuplicateState(selected[0])}
+        onChange={selected => setDuplicateState(selected[0])}
         allowMultiple={false}
+      />
+      <ChoiceFilter
+        label="Datasets"
+        isLoading={isLoadingDatasets}
+        choices={
+          datasetsResponse?.results.map(dataset => ({
+            value: dataset.slug_version,
+            count: dataset.image_count,
+          })) || []
+        }
+        selected={datasets}
+        onChange={selected => setDatasets(selected)}
+        allowMultiple={true}
       />
     </div>
   );

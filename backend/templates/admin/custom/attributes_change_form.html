@@ -1,0 +1,99 @@
+{% extends "admin/change_form.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+(function() {
+    function sanitizeArrayTypeOptions() {
+        var arrayTypeSelect = document.querySelector('#id_array_type');
+        if (!arrayTypeSelect) return;
+        // Hide/disable unsupported 'object' array type
+        var options = Array.prototype.slice.call(arrayTypeSelect.options || []);
+        options.forEach(function(opt) {
+            if (String(opt.value).toLowerCase() === 'object' || String(opt.text).toLowerCase() === 'object') {
+                opt.disabled = true;
+                opt.hidden = true;
+            }
+        });
+        if (String(arrayTypeSelect.value).toLowerCase() === 'object') {
+            arrayTypeSelect.value = '';
+        }
+    }
+    function toggleFieldVisibility(fieldType) {
+        // Get all conditional field rows
+        var isIndexedRow = document.querySelector('.field-is_indexed');
+        var stringFormatRow = document.querySelector('.field-string_format');
+        var arrayTypeRow = document.querySelector('.field-array_type');
+        var enumChoicesRow = document.querySelector('.field-enum_choices');
+        
+        // Handle is_indexed field (hidden for OBJECT types)
+        if (isIndexedRow) {
+            if (fieldType === 'object') {
+                isIndexedRow.style.display = 'none';
+                var isIndexedCheckbox = isIndexedRow.querySelector('input[type="checkbox"]');
+                if (isIndexedCheckbox) {
+                    isIndexedCheckbox.checked = false;
+                }
+            } else {
+                isIndexedRow.style.display = '';
+            }
+        }
+        
+        // Handle string_format field (only for STRING types)
+        if (stringFormatRow) {
+            if (fieldType === 'string') {
+                stringFormatRow.style.display = '';
+            } else {
+                stringFormatRow.style.display = 'none';
+                var stringFormatSelect = stringFormatRow.querySelector('select');
+                if (stringFormatSelect) {
+                    stringFormatSelect.value = '';
+                }
+            }
+        }
+        
+        // Handle array_type field (only for ARRAY types)
+        if (arrayTypeRow) {
+            if (fieldType === 'array') {
+                arrayTypeRow.style.display = '';
+                sanitizeArrayTypeOptions();
+            } else {
+                arrayTypeRow.style.display = 'none';
+                var arrayTypeSelect = arrayTypeRow.querySelector('select');
+                if (arrayTypeSelect) {
+                    arrayTypeSelect.value = '';
+                }
+            }
+        }
+        
+        // Handle enum_choices field (available only for STRING, NUMBER, INTEGER types)
+        if (enumChoicesRow) {
+            if (fieldType === 'object' || fieldType === 'array' || fieldType === 'boolean') {
+                enumChoicesRow.style.display = 'none';
+                var enumChoicesTextarea = enumChoicesRow.querySelector('textarea');
+                if (enumChoicesTextarea) {
+                    enumChoicesTextarea.value = '';
+                }
+            } else {
+                enumChoicesRow.style.display = '';
+            }
+        }
+    }
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        var fieldTypeSelect = document.querySelector('#id_field_type');
+        sanitizeArrayTypeOptions();
+        if (fieldTypeSelect) {
+            // Set initial state
+            toggleFieldVisibility(fieldTypeSelect.value);
+            
+            // Add change listener
+            fieldTypeSelect.addEventListener('change', function() {
+                toggleFieldVisibility(this.value);
+            });
+        }
+    });
+})();
+</script>
+{% endblock %}

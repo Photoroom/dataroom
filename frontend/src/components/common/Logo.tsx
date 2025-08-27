@@ -1,13 +1,15 @@
-import React from 'react';
-import { twMerge } from 'tailwind-merge';
+import React from "react";
+import { twMerge } from "tailwind-merge";
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => {
   return (
-    <div className={twMerge(
-      "size-16 p-2 flex flex-row items-center justify-center shrink-0",
-      "text-black dark:text-white",
-      className
-    )}>
+    <div
+      className={twMerge(
+        "size-16 p-2 flex flex-row items-center justify-center shrink-0",
+        "text-black dark:text-white",
+        className
+      )}
+    >
       <svg fill="none" viewBox="0 0 24 24" className="size-10">
         <g fill="currentColor">
           <path

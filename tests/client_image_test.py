@@ -499,7 +499,7 @@ async def test_count_images(DataRoom, image_logo, image_girl, image_perfume):
     # force invalidate cache from other tests
     AttributesSchema.invalidate_cache()
 
-    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string')
+    await sync_to_async(AttributesField.objects.create)(name='color', field_type='string', is_indexed=True)
     await sync_to_async(AttributesSchema.json_schema_fn)()
 
     image_logo.source = 'other'

@@ -6,14 +6,13 @@ import { router } from "./router";
 
 import "../styles/index.css";
 
-
 declare global {
-    interface Window {
-        SPA: ({}: SettingsContextProps) => void;
-    }
+  interface Window {
+    SPA: (settings: SettingsContextProps) => void;
+  }
 }
 
-window.SPA = function(settings: SettingsContextProps) {
+window.SPA = function (settings: SettingsContextProps) {
   const SettingsProvider = ({ children }: { children?: React.ReactNode }) => {
     return <SettingsContext.Provider value={settings}>{children}</SettingsContext.Provider>;
   };
@@ -25,8 +24,8 @@ window.SPA = function(settings: SettingsContextProps) {
   ReactDOM.createRoot(el).render(
     <React.StrictMode>
       <SettingsProvider>
-        <RouterProvider router={router}/>
+        <RouterProvider router={router} />
       </SettingsProvider>
     </React.StrictMode>
   );
-}
+};

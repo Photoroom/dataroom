@@ -280,6 +280,7 @@ TEMPLATES = [
                 "vite_asset": "django_vite.templatetags.django_vite.vite_asset",
                 "vite_asset_url": "django_vite.templatetags.django_vite.vite_asset_url",
                 "vite_hmr_client": "django_vite.templatetags.django_vite.vite_hmr_client",
+                "vite_react_refresh": "django_vite.templatetags.django_vite.vite_react_refresh",
                 # heroicons
                 "heroicon_outline": "heroicons.jinja.heroicon_outline",
                 "heroicon_solid": "heroicons.jinja.heroicon_solid",

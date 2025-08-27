@@ -15,16 +15,16 @@
   padding-left: var(--gutter);
   padding-right: var(--gutter);
   max-width: var(--container-sm);
-  
+
   @media (min-width: 40rem) {
     max-width: var(--container-sm);
   }
-  
+
   @media (min-width: 48rem) {
     padding: 0;
     max-width: var(--container-md);
   }
-  
+
   @media (min-width: 64rem) {
     max-width: var(--container-lg);
   }
@@ -36,11 +36,11 @@
   margin-left: auto;
   margin-right: auto;
   max-width: var(--container-sm);
-  
+
   @media (min-width: 40rem) {
     max-width: var(--container-sm);
   }
-  
+
   @media (min-width: 48rem) {
     padding: 0;
     max-width: var(--container-md);
@@ -53,7 +53,7 @@
   margin-left: auto;
   margin-right: auto;
   max-width: var(--container-sm);
-  
+
   @media (min-width: 40rem) {
     max-width: var(--container-sm);
   }

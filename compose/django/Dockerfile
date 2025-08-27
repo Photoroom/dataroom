@@ -32,7 +32,7 @@ RUN apt update
 RUN apt install -y build-essential gcc g++
 # Install dependencies
 RUN apt install -y libpq-dev libsnappy-dev libcurl4-openssl-dev libssl-dev
-RUN apt install -y openssl
+RUN apt install -y openssl curl
 # Clean up the apt cache to reduce image size
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 # Install poetry and compilation dependencies

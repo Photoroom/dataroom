@@ -17,3 +17,43 @@ repos:
     rev: 2.0.1
     hooks:
       - id: poetry-check
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.32.0
+    hooks:
+      - id: eslint
+        types: [file]
+        files: ^frontend/.*\.(js|jsx|ts|tsx)$
+        args:
+          - '--fix'
+          - '--no-warn-ignored'
+          - '--report-unused-disable-directives'
+          - '--max-warnings'
+          - '0'
+        additional_dependencies:
+          - prettier@^3
+          - eslint@^9.32.0
+          - typescript-eslint@^8.19.0
+          - eslint-config-prettier@^9
+          - eslint-plugin-prettier@^5
+          - "@typescript-eslint/parser@^7"
+          - "@typescript-eslint/eslint-plugin@^7"
+          - eslint-plugin-react@^7.34.1
+          - eslint-plugin-react-hooks@^4.6.0
+          - eslint-plugin-react-refresh@^0.4.3
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: frontend/.*\.(js|jsx|ts|tsx|json|css|scss|md)$
+        args: [--no-error-on-unmatched-pattern]
+
+  - repo: local
+    hooks:
+      - id: typescript-check
+        name: TypeScript type check
+        entry: bash -c 'cd frontend && npm run typecheck'
+        language: system
+        files: frontend/.*\.(ts|tsx)$
+        pass_filenames: false

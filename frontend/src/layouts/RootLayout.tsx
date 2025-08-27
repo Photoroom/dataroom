@@ -22,9 +22,9 @@ export function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Toaster toastOptions={{className: "text-sm"}} />
+        <Toaster toastOptions={{ className: "text-sm" }} />
         <Outlet />
       </ThemeProvider>
     </QueryClientProvider>
-  )
+  );
 }

@@ -8,6 +8,9 @@ interface LoaderSkeletonProps {
 
 export const LoaderSkeleton: React.FC<LoaderSkeletonProps> = ({ className, style }) => {
   return (
-    <span className={twMerge("block h-6 w-full rounded-sm animate-pulse bg-black/8 dark:bg-white/8", className)} style={style}></span>
+    <span
+      className={twMerge("block h-6 w-full rounded-sm animate-pulse bg-black/8 dark:bg-white/8", className)}
+      style={style}
+    ></span>
   );
 };

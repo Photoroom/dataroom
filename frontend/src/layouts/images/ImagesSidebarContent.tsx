@@ -7,26 +7,14 @@ import { SelectImagesForm } from "./SelectImagesForm";
 import { RandomModeForm } from "./RandomModeForm";
 import { SearchForm } from "./SearchForm";
 import { Filters } from "./Filters";
-import { useSearchParams } from "react-router-dom";
-
 export const ImagesSidebarContent: React.FC = function () {
-  const {
-    mode,
-    setModeBrowse,
-    setModeRandom,
-    isSelecting,
-    setIsSelecting,
-    filters,
-    setFilters,
-  } = useImageListData();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { mode, setModeBrowse, setModeRandom, isSelecting, setIsSelecting, filters, setFilters } = useImageListData();
 
   const [isSearchOpen, setIsSearchOpen] = useState(mode === ImageListMode.SIMILAR);
   const [isFilterOpen, setIsFilterOpen] = useState(() => {
-    return Object.values(filters).some(value => 
-      (Array.isArray(value) && value.length > 0) || 
-      (!Array.isArray(value) && value !== null)
-    )
+    return Object.values(filters).some(
+      value => (Array.isArray(value) && value.length > 0) || (!Array.isArray(value) && value !== null)
+    );
   });
 
   useEffect(() => {
@@ -45,8 +33,9 @@ export const ImagesSidebarContent: React.FC = function () {
       has_attributes: [],
       has_latents: [],
       duplicate_state: null,
+      datasets: [],
     });
-  }
+  };
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-2 pb-6 max-w-sidebar-open mx-auto">

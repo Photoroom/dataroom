@@ -13,15 +13,15 @@ def images_with_attributes(image_logo, image_logo_alt, image_girl, image_perfume
     AttributesSchema.invalidate_cache()  # force invalidate cache from other tests
 
     # setup
-    AttributesField.objects.create(name='color', field_type='string')
-    AttributesField.objects.create(name='has_text', field_type='boolean')
-    AttributesField.objects.create(name='user', field_type='string')
-    AttributesField.objects.create(name='unknown', field_type='string')
-    AttributesField.objects.create(name='caption.dot', field_type='string')
-    AttributesField.objects.create(name='int', field_type='integer')
-    AttributesField.objects.create(name='number', field_type='number')
-    AttributesField.objects.create(name='double__underscore', field_type='number')
-    AttributesField.objects.create(name='date', field_type='string', string_format='date')
+    AttributesField.objects.create(name='color', field_type='string', is_indexed=True)
+    AttributesField.objects.create(name='has_text', field_type='boolean', is_indexed=True)
+    AttributesField.objects.create(name='user', field_type='string', is_indexed=True)
+    AttributesField.objects.create(name='unknown', field_type='string', is_indexed=True)
+    AttributesField.objects.create(name='caption.dot', field_type='string', is_indexed=True)
+    AttributesField.objects.create(name='int', field_type='integer', is_indexed=True)
+    AttributesField.objects.create(name='number', field_type='number', is_indexed=True)
+    AttributesField.objects.create(name='double__underscore', field_type='number',is_indexed=True)
+    AttributesField.objects.create(name='date', field_type='string', string_format='date', is_indexed=True)
     AttributesSchema.json_schema_fn()
 
     image_logo.attributes.update({

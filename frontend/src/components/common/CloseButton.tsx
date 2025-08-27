@@ -8,11 +8,7 @@ interface CloseButtonProps {
   className?: string;
 }
 
-export const CloseButton: React.FC<CloseButtonProps> = ({
-  onClick,
-  isVisible = true,
-  className,
-}) => {
+export const CloseButton: React.FC<CloseButtonProps> = ({ onClick, isVisible = true, className }) => {
   return (
     <button
       type="button"

@@ -7,7 +7,7 @@ class AttributesFieldType(models.TextChoices):
     STRING = "string", "String"
     NUMBER = "number", "Number"
     INTEGER = "integer", "Integer"
-    # OBJECT = "object", "Object"  # nesting not allowed for now
+    OBJECT = "object", "Object"
     ARRAY = "array", "Array"
     BOOLEAN = "boolean", "Boolean"
     NULL = "null", "Null"
@@ -46,9 +46,11 @@ class AttributesFilterComparator(models.TextChoices):
 class OSFieldType(models.TextChoices):
     DATE = "date", "date"
     TEXT = "text", "text"
+    KEYWORD = "keyword", "keyword"
     DOUBLE = "double", "double"
     LONG = "long", "long"
     BOOLEAN = "boolean", "boolean"
+    OBJECT = "object", "object"
 
     def is_valid_for_comparator(self, comparator: AttributesFilterComparator):
         if self in [OSFieldType.DOUBLE, OSFieldType.LONG, OSFieldType.DATE]:
@@ -67,7 +69,7 @@ class OSFieldType(models.TextChoices):
                 AttributesFilterComparator.EQ,
                 AttributesFilterComparator.NE,
             ]
-        elif self in [OSFieldType.TEXT]:
+        elif self in [OSFieldType.TEXT, OSFieldType.KEYWORD]:
             # text type
             return comparator in [
                 AttributesFilterComparator.EQ,
@@ -79,6 +81,9 @@ class OSFieldType(models.TextChoices):
                 AttributesFilterComparator.NOT_MATCH_PHRASE,
                 AttributesFilterComparator.NOT_PREFIX,
             ]
+        elif self in [OSFieldType.OBJECT]:
+            # object type - not searchable, no comparators supported
+            return False
         raise NotImplementedError(f'Comparator {comparator} not implemented for type {self}')
 
 

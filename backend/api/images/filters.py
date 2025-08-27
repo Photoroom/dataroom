@@ -13,9 +13,9 @@ from opensearchpy import Q, Search
 
 from backend.api.filters import WhitespacePreservingCharField
 from backend.dataroom.choices import AttributesFilterComparator, DuplicateState
-from backend.dataroom.models import AttributesFieldNotFoundError, AttributesSchema
+from backend.dataroom.models import AttributesSchema
 from backend.dataroom.models.dataset import Dataset
-from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSLatents
+from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSFieldType, OSLatents
 from backend.dataroom.models.tag import Tag
 
 
@@ -241,18 +241,22 @@ class OSImageFilterSet(django_filters.FilterSet):
                 comp = AttributesFilterComparator.get_for_attr_name(attr_name)
                 if '__' in attr_name:
                     attr_name, _ = attr_name.rsplit('__', 1)
-                try:
-                    os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
-                except AttributesFieldNotFoundError as e:
-                    # the field is not in the schema
-                    raise e
+
+                # Raises AttributesFieldNotFound if the field is not in the schema
+                os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+                is_indexed = AttributesSchema.get_is_indexed_for_field_name(attr_name)
+                if not is_indexed:
+                    raise InvalidFilterError(
+                        f"Attribute '{attr_name}' is not indexed and can therefore not be used for filtering."
+                    )
+
                 if not os_type.is_valid_for_comparator(comp):
                     raise InvalidFilterError(
                         f"Invalid comparator '{comp}' for attribute '{attr_name}' of type '{os_type}'",
                     )
                 else:
                     try:
-                        attr = OSAttribute(name=attr_name, value=attr_val, os_type=os_type)
+                        attr = OSAttribute(name=attr_name, value=attr_val, os_type=os_type, is_indexed=True)
                     except ValueError as e:
                         raise InvalidFilterError(
                             f"Invalid filter value '{attr_val}' for attribute '{attr_name}'"
@@ -337,12 +341,22 @@ class OSImageFilterSet(django_filters.FilterSet):
     def filter_by_has_attributes(self, search, name, value):
         attrs = OSAttributes.from_json({key: None for key in value.split(',')})
         for attr in attrs.attributes.values():
+            if attr.os_type == OSFieldType.OBJECT:
+                raise InvalidFilterError(
+                    f"Existance checks on object attributes are not supported. Attribute: {attr.name}"
+                )
+
             search = search.filter("exists", field=attr.os_name, _expand__to_dot=False)
         return search
 
     def filter_by_lacks_attributes(self, search, name, value):
         attrs = OSAttributes.from_json({key: None for key in value.split(',')})
         for attr in attrs.attributes.values():
+            if attr.os_type == OSFieldType.OBJECT:
+                raise InvalidFilterError(
+                    f"Existance checks on object attributes are not supported. Attribute: {attr.name}"
+                )
+
             search = search.filter("bool", must_not=[{"exists": {"field": attr.os_name}}], _expand__to_dot=False)
         return search
 

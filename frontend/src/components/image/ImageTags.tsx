@@ -15,10 +15,7 @@ interface ImageTagsProps {
   enableEdit?: boolean;
 }
 
-export const ImageTags: React.FC<ImageTagsProps> = ({ 
-  image,
-  enableEdit = true,
-}) => {
+export const ImageTags: React.FC<ImageTagsProps> = ({ image, enableEdit = true }) => {
   const [isAddTagsOpen, setIsAddTagsOpen] = useState(false);
   const { refetchImage } = useImageDrawer();
 
@@ -26,15 +23,17 @@ export const ImageTags: React.FC<ImageTagsProps> = ({
   const { mutate: updateImage, isPending: isUpdatingImage } = useImagesUpdate();
 
   const handleTagsFormSubmit = (tags: string[]) => {
-      if (!image) {
-        return;
-      }
-      updateImage({
+    if (!image) {
+      return;
+    }
+    updateImage(
+      {
         id: image.id,
         data: {
           tags: tags,
         },
-      }, {
+      },
+      {
         onSuccess: () => {
           setIsAddTagsOpen(false);
           refetchImage();
@@ -42,50 +41,60 @@ export const ImageTags: React.FC<ImageTagsProps> = ({
         onError: () => {
           toast.error("Error updating image tags");
         },
-      });
+      }
+    );
   };
 
   // -------------------- Render --------------------
   return (
     <Collapsible name="tags" title="Tags" initialOpen={true}>
       <div className="flex flex-row flex-wrap items-center gap-2">
-        {
-          image ? (
-            <>
-              {image.tags && !!image.tags.length && image.tags.map((tag: string) => (
-                <span className="px-3 py-1 rounded-full text-xs text-left bg-black/8 dark:bg-white/8" key={tag}>{tag}</span>
+        {image ? (
+          <>
+            {image.tags &&
+              !!image.tags.length &&
+              image.tags.map((tag: string) => (
+                <span className="px-3 py-1 rounded-full text-xs text-left bg-black/8 dark:bg-white/8" key={tag}>
+                  {tag}
+                </span>
               ))}
-              {!image.tags || image.tags?.length === 0 && (
-                <p className="opacity-50">No tags</p>
-              )}
-            </>
-          ) : (
-            <>
-              <LoaderSkeleton className="w-20" />
-              <LoaderSkeleton className="w-20" />
-            </>
-          )
-        }
+            {!image.tags || (image.tags?.length === 0 && <p className="opacity-50">No tags</p>)}
+          </>
+        ) : (
+          <>
+            <LoaderSkeleton className="w-20" />
+            <LoaderSkeleton className="w-20" />
+          </>
+        )}
         {enableEdit && (
-          <button 
+          <button
             type="button"
-            onClick={() => { setIsAddTagsOpen(true) }}
+            onClick={() => {
+              setIsAddTagsOpen(true);
+            }}
             className="px-3 py-1 cursor-pointer border border-black/8 dark:border-white/8 rounded-full hover:bg-black/8 dark:hover:bg-white/8"
             key="+"
             title="Add tag"
-          ><PlusIcon className="size-4" /></button>
+          >
+            <PlusIcon className="size-4" />
+          </button>
         )}
       </div>
 
-      {enableEdit && image && isAddTagsOpen && (
+      {enableEdit &&
+        image &&
+        isAddTagsOpen &&
         ReactDOM.createPortal(
-          <Popup onClose={() => { setIsAddTagsOpen(false); }}>
+          <Popup
+            onClose={() => {
+              setIsAddTagsOpen(false);
+            }}
+          >
             <h5 className="mb-6">Add tags to {image.id}</h5>
             <TagsForm initialTags={image.tags} onSubmit={handleTagsFormSubmit} isLoading={isUpdatingImage} />
           </Popup>,
           document.body
-        )
-      )}
+        )}
     </Collapsible>
   );
-}; 
+};

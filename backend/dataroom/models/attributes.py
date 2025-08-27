@@ -33,6 +33,11 @@ class AttributesField(BaseModel):
     enum_choices = JSONField(null=True, blank=True)
     is_required = models.BooleanField(default=False)
     is_enabled = models.BooleanField(default=True, help_text="Is validation for this field enabled?")
+    is_indexed = models.BooleanField(
+        default=False,
+        help_text="Whether this attribute should be indexed for search. "
+        "Non-indexed attributes are stored but not searchable.",
+    )
     is_mapped = models.BooleanField(
         default=False,
         editable=False,
@@ -46,10 +51,30 @@ class AttributesField(BaseModel):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validate that OBJECT types cannot be used as array items
+        if self.field_type == AttributesFieldType.ARRAY and self.array_type == AttributesFieldType.OBJECT:
+            raise ValidationError("Arrays of objects are not supported. Use a single object type instead.")
+
+        # Validate that OBJECT types cannot have string_format
+        if self.field_type == AttributesFieldType.OBJECT and self.string_format:
+            raise ValidationError("Object types cannot have a string format.")
+
+        # Validate that OBJECT types must be non-indexed
+        if self.field_type == AttributesFieldType.OBJECT and self.is_indexed:
+            raise ValidationError("Object types cannot be indexed.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     @property
     def json_schema(self):
         schema = {
             "type": self.field_type,
+            "is_indexed": self.is_indexed,
         }
         if self.description:
             schema["description"] = self.description
@@ -69,8 +94,9 @@ class AttributesField(BaseModel):
             field_type=self.field_type,
             string_format=self.string_format,
             array_type=self.array_type,
+            is_indexed=self.is_indexed,
         )
-        attr = OSAttribute(name=self.name, value=None, os_type=os_type)
+        attr = OSAttribute(name=self.name, value=None, os_type=os_type, is_indexed=self.is_indexed)
         return attr.os_name
 
     @classmethod
@@ -84,6 +110,7 @@ class AttributesField(BaseModel):
             field_type=field_type,
             string_format=string_format,
             is_enabled=False,
+            is_indexed=os_attribute.is_indexed,
         )
 
 
@@ -113,6 +140,8 @@ class AttributesSchemaClass:
         """
         if os_type == OSFieldType.TEXT:
             return AttributesFieldType.STRING, None
+        if os_type == OSFieldType.KEYWORD:
+            return AttributesFieldType.STRING, None
         if os_type == OSFieldType.DATE:
             return AttributesFieldType.STRING, AttributesFieldStringFormat.DATE
         if os_type == OSFieldType.DOUBLE:
@@ -121,10 +150,12 @@ class AttributesSchemaClass:
             return AttributesFieldType.INTEGER, None
         if os_type == OSFieldType.BOOLEAN:
             return AttributesFieldType.BOOLEAN, None
+        if os_type == OSFieldType.OBJECT:
+            return AttributesFieldType.OBJECT, None
         raise ValueError(f'Unsupported OS type: "{os_type}"')
 
     @classmethod
-    def get_os_type(cls, field_type, string_format=None, array_type=None):
+    def get_os_type(cls, field_type, string_format=None, array_type=None, is_indexed=False):
         """
         Convert jsonschema type to OpenSearch type
         """
@@ -135,6 +166,8 @@ class AttributesSchemaClass:
         if field_type == AttributesFieldType.STRING:
             if string_format in [AttributesFieldStringFormat.DATE_TIME, AttributesFieldStringFormat.DATE]:
                 return OSFieldType.DATE
+            if not is_indexed:
+                return OSFieldType.KEYWORD
             return OSFieldType.TEXT
         if field_type == AttributesFieldType.NUMBER:
             return OSFieldType.DOUBLE
@@ -142,6 +175,8 @@ class AttributesSchemaClass:
             return OSFieldType.LONG
         if field_type == AttributesFieldType.BOOLEAN:
             return OSFieldType.BOOLEAN
+        if field_type == AttributesFieldType.OBJECT:
+            return OSFieldType.OBJECT
         raise ValueError(f'Unsupported OS type: "{field_type}" with format "{string_format}"')
 
     def get_os_type_for_field_name(self, field_name):
@@ -152,7 +187,14 @@ class AttributesSchemaClass:
             field_type=field["type"],
             string_format=field.get("format"),
             array_type=field.get("items", {}).get("type"),
+            is_indexed=field.get("is_indexed", False),
         )
+
+    def get_is_indexed_for_field_name(self, field_name):
+        field = self.json_schema["properties"].get(field_name)
+        if not field:
+            raise AttributesFieldNotFoundError(f'Field "{field_name}" not found in schema')
+        return field.get('is_indexed', False)
 
     def invalidate_cache(self):
         self._json_schema = None

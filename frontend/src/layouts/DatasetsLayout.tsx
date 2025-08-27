@@ -5,7 +5,6 @@ import { Outlet } from "react-router-dom";
 import { useDatasetDrawer } from "../context/DatasetDrawerContext";
 import { SidebarActiveNav } from "../context/SidebarContext";
 
-
 export function DatasetsLayout() {
   return (
     <MainLayout
@@ -16,5 +15,5 @@ export function DatasetsLayout() {
     >
       <Outlet />
     </MainLayout>
-  )
+  );
 }

@@ -23,7 +23,12 @@ const ChoiceItem: React.FC<ChoiceItemProps> = ({ choice, checked, onChange, allo
   const Comp = allowMultiple ? Checkbox : Radio;
   return (
     <Comp
-      label={<>{choice.label ? choice.label : choice.value} {choice.count !== undefined && <span className="opacity-50">({shortNumberDisplay(choice.count)})</span>}</>}
+      label={
+        <>
+          {choice.label ? choice.label : choice.value}{" "}
+          {choice.count !== undefined && <span className="opacity-50">({shortNumberDisplay(choice.count)})</span>}
+        </>
+      }
       checked={checked}
       onChange={onChange}
     />
@@ -31,8 +36,8 @@ const ChoiceItem: React.FC<ChoiceItemProps> = ({ choice, checked, onChange, allo
 };
 
 interface ChoiceFilterProps {
-  label: string,
-  isLoading: boolean,
+  label: string;
+  isLoading: boolean;
   choices: Choice[];
   selected: string[];
   onChange: (selected: string[]) => void;
@@ -53,12 +58,12 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
   const hasMoreChoices = choices.length > initialShowCount;
   const initialChoices = choices.slice(0, initialShowCount);
   const remainingChoices = choices.slice(initialShowCount);
-  
+
   const hiddenCount = choices.length - initialShowCount;
 
   const handleChoiceChange = (choice: Choice, checked: boolean) => {
     if (allowMultiple) {
-      onChange(checked ? [...selected, choice.value] : selected.filter((s) => s !== choice.value));
+      onChange(checked ? [...selected, choice.value] : selected.filter(s => s !== choice.value));
     } else {
       onChange([choice.value]);
     }
@@ -69,34 +74,36 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
       <div className="flex flex-row gap-2 items-center justify-between">
         <p className="text-sm">{label}</p>
         {selected.length > 0 && (
-          <button className="text-xs flex flex-row items-center opacity-50 cursor-pointer hover:opacity-100" onClick={() => onChange([])}>
+          <button
+            className="text-xs flex flex-row items-center opacity-50 cursor-pointer hover:opacity-100"
+            onClick={() => onChange([])}
+          >
             <XMarkIcon className="size-4" /> Clear
           </button>
         )}
       </div>
       <div className="flex flex-col gap-2 px-0.5">
-        {
-          isLoading && (<>
+        {isLoading && (
+          <>
             <LoaderSkeleton />
             <LoaderSkeleton />
             <LoaderSkeleton />
           </>
-          )
-        }
+        )}
 
-        {initialChoices.map((choice) => (
+        {initialChoices.map(choice => (
           <ChoiceItem
             key={choice.value}
             choice={choice}
             checked={selected.includes(choice.value)}
-            onChange={(checked) => handleChoiceChange(choice, checked)}
+            onChange={checked => handleChoiceChange(choice, checked)}
             allowMultiple={allowMultiple}
           />
         ))}
-        
+
         {hasMoreChoices && (
           <div className="flex flex-col gap-2">
-            <div 
+            <div
               className={twMerge(
                 "grid transition-all ease-in-out",
                 showAll ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
@@ -104,20 +111,20 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
             >
               <div className="overflow-hidden">
                 <div className="flex flex-col gap-2">
-                  {remainingChoices.map((choice) => (
+                  {remainingChoices.map(choice => (
                     <ChoiceItem
                       key={choice.value}
                       choice={choice}
                       checked={selected.includes(choice.value)}
-                      onChange={(checked) => handleChoiceChange(choice, checked)}
+                      onChange={checked => handleChoiceChange(choice, checked)}
                       allowMultiple={allowMultiple}
                     />
                   ))}
                 </div>
               </div>
             </div>
-            
-            <button 
+
+            <button
               className="self-start text-xs cursor-pointer opacity-50 hover:opacity-100"
               onClick={() => setShowAll(!showAll)}
             >
@@ -129,4 +136,3 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
     </div>
   );
 };
-
