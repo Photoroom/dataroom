@@ -14,8 +14,10 @@ interface LabelTooltipProps {
 
 export function LabelTooltip({
   content,
-  icon = <QuestionMarkCircleIcon className="size-4 opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity" />,
-  placement = 'bottom-start',
+  icon = (
+    <QuestionMarkCircleIcon className="size-4 opacity-40 hover:opacity-100 focus:opacity-100 transition-opacity" />
+  ),
+  placement = "bottom-start",
   className,
   tooltipClassName,
 }: LabelTooltipProps) {
@@ -42,13 +44,16 @@ export function LabelTooltip({
       >
         {icon}
       </div>
-      
+
       {isOpen && (
         <FloatingPortal>
           <div
             ref={refs.setFloating}
             style={floatingStyles}
-            className={twMerge("max-w-[260px] min-w-[180px] z-50 p-3 shadow-xl border border-gray-200 rounded-md text-xs text-black bg-white", tooltipClassName)}
+            className={twMerge(
+              "max-w-[260px] min-w-[180px] z-50 p-3 shadow-xl border border-gray-200 rounded-md text-xs text-black bg-white",
+              tooltipClassName
+            )}
             role="tooltip"
           >
             {content}

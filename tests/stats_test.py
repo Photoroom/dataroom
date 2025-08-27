@@ -26,8 +26,8 @@ def test_stats_api(user, tests_path, image_logo, image_logo_alt, image_logo_smal
     tag = Tag.objects.create(name='test')
 
     # define some attributes
-    AttributesField.objects.create(name='color', field_type='string')
-    AttributesField.objects.create(name='has_background', field_type='boolean')
+    AttributesField.objects.create(name='color', field_type='string', is_indexed=True)
+    AttributesField.objects.create(name='has_background', field_type='boolean', is_indexed=True)
     AttributesSchema.invalidate_cache()
 
     # create LatentType
@@ -170,12 +170,14 @@ def test_stats_api(user, tests_path, image_logo, image_logo_alt, image_logo_smal
         'field_type': 'string',
         'string_format': None,
         'is_enabled': True,
+        'is_indexed': True,
         'image_count': 1,
     }, {
         'name': 'has_background',
         'field_type': 'boolean',
         'string_format': None,
         'is_enabled': True,
+        'is_indexed': True,
         'image_count': 0,
     }]
 

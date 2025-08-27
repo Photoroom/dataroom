@@ -185,7 +185,7 @@ class OSLatents:
 
 
 class OSAttribute:
-    def __init__(self, name, value, os_type):
+    def __init__(self, name, value, os_type, is_indexed=False):
         self.name = name
 
         # validate the OS type
@@ -193,12 +193,21 @@ class OSAttribute:
             raise ValueError(f"Invalid OS type: {os_type}")
         self.os_type = os_type
 
+        # validate objects are not indexed
+        if os_type == OSFieldType.OBJECT and is_indexed:
+            raise ValueError("Object attributes cannot be indexed")
+        self.is_indexed = is_indexed
+
         # validate the value
         if os_type == OSFieldType.BOOLEAN and value is not None:
             value = str(value).lower()
             if value not in ['true', 'false']:
                 raise ValueError(f"Invalid boolean value: {value}")
             value = value == 'true'
+        elif os_type == OSFieldType.OBJECT and value is not None:
+            # Validate that object values are valid JSON objects (dict)
+            if not isinstance(value, dict):
+                raise ValueError(f"Object attribute values must be dictionaries/objects, got {type(value)}")
         self.value = value
 
     def __repr__(self):
@@ -206,13 +215,14 @@ class OSAttribute:
 
     @property
     def os_name(self):
-        return f'attr_{self.name}_{self.os_type}'
+        prefix = "attr" if self.is_indexed else "attr_noidx"
+        return f'{prefix}_{self.name}_{self.os_type}'
 
     @property
     def os_name_keyword(self):
         """Text fields store an additional keyword field for exact matches"""
         if self.os_type == OSFieldType.TEXT:
-            return f'attr_{self.name}_{self.os_type}.keyword'
+            return self.os_name + '.keyword'
         return self.os_name
 
 
@@ -233,21 +243,37 @@ class OSAttributes:
         """Parse OSAttributes from an OpenSearch hit"""
         attributes = {}
         for key in hit:
-            if key.startswith('attr_'):
+            # Handle both indexed (attr_) and non-indexed (attr_noidx_) attributes
+            is_indexed = None
+            name = None
+
+            if key.startswith('attr_noidx_'):
+                is_indexed = False
+                for os_type in OSFieldType.values:
+                    if key.endswith(f'_{os_type}'):
+                        name = key[len('attr_noidx_') : -len(f'_{os_type}')]
+                        break
+            elif key.startswith('attr_'):
+                is_indexed = True
                 for os_type in OSFieldType.values:
                     if key.endswith(f'_{os_type}'):
                         name = key[len('attr_') : -len(f'_{os_type}')]
-                        try:
-                            expected_type = AttributesSchema.get_os_type_for_field_name(name)
-                        except AttributesFieldNotFoundError:
-                            # the field is not in the schema, so we ignore it
-                            pass
-                        else:
-                            if expected_type == os_type:
-                                attributes[name] = OSAttribute(name=name, value=hit[key], os_type=os_type)
-                            else:
-                                # if the expected and indexed types don't match, we ignore the field
-                                pass
+                        break
+
+            if name is not None and is_indexed is not None:
+                try:
+                    expected_type = AttributesSchema.get_os_type_for_field_name(name)
+                except AttributesFieldNotFoundError:
+                    # the field is not in the schema, so we ignore it
+                    pass
+                else:
+                    if expected_type == os_type:
+                        attributes[name] = OSAttribute(
+                            name=name, value=hit[key], os_type=os_type, is_indexed=is_indexed
+                        )
+                    else:
+                        # if the expected and indexed types don't match, we ignore the field
+                        pass
         return cls(attributes=attributes)
 
     @classmethod
@@ -259,11 +285,12 @@ class OSAttributes:
         for name, value in attrs_dict.items():
             try:
                 os_type = AttributesSchema.get_os_type_for_field_name(name)
+                is_indexed = AttributesSchema.get_is_indexed_for_field_name(name)
             except AttributesFieldNotFoundError as e:
                 # the field is not in the schema
                 raise e
             else:
-                attributes[name] = OSAttribute(name=name, value=value, os_type=os_type)
+                attributes[name] = OSAttribute(name=name, value=value, os_type=os_type, is_indexed=is_indexed)
         return cls(attributes=attributes)
 
     @classmethod
@@ -271,11 +298,25 @@ class OSAttributes:
         """Parse an empty OSAttributes object from OS mappings"""
         attributes = {}
         for key in mapping:
-            if key.startswith('attr_'):
+            # Handle both indexed (attr_) and non-indexed (attr_noidx_) attributes
+            is_indexed = None
+            name = None
+
+            if key.startswith('attr_noidx_'):
+                is_indexed = False
+                for os_type in OSFieldType.values:
+                    if key.endswith(f'_{os_type}'):
+                        name = key[len('attr_noidx_') : -len(f'_{os_type}')]
+                        break
+            elif key.startswith('attr_'):
+                is_indexed = True
                 for os_type in OSFieldType.values:
                     if key.endswith(f'_{os_type}'):
                         name = key[len('attr_') : -len(f'_{os_type}')]
-                        attributes[name] = OSAttribute(name=name, value=None, os_type=os_type)
+                        break
+
+            if name is not None and is_indexed is not None:
+                attributes[name] = OSAttribute(name=name, value=None, os_type=os_type, is_indexed=is_indexed)
         return cls(attributes=attributes)
 
     def update(self, attrs_dict):
@@ -697,7 +738,62 @@ class OSImage:
                         "mapping": {"type": "keyword", "norms": False},
                     },
                 },
-                # attributes
+                # Non-indexed attributes (stored but not searchable, aggregatable)
+                # attr_noidx_<attribute_name>_<os_type>
+                # We use the os_type in the name in order to avoid losing data if the schema type is changed
+                {
+                    "attr_noidx_keywords": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_keyword",
+                        "mapping": {
+                            "type": "keyword",
+                            "index": False,  # Not searchable
+                            "doc_values": True,  # Aggregatable
+                            "norms": False,  # No scoring
+                        },
+                    },
+                },
+                {
+                    "attr_noidx_doubles": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_double",
+                        "mapping": {"type": "double", "index": False, "doc_values": True},
+                    },
+                },
+                {
+                    "attr_noidx_longs": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_long",
+                        "mapping": {"type": "long", "index": False, "doc_values": True},
+                    },
+                },
+                {
+                    "attr_noidx_dates": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_date",
+                        "mapping": {"type": "date", "index": False, "doc_values": True},
+                    },
+                },
+                {
+                    "attr_noidx_booleans": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_boolean",
+                        "mapping": {"type": "boolean", "index": False, "doc_values": True},
+                    },
+                },
+                {
+                    "attr_noidx_objects": {
+                        "match_pattern": "regex",
+                        "match": "attr_noidx_.*_object",
+                        "mapping": {
+                            "type": "object",
+                            "index": False,  # Not searchable
+                            "dynamic": False,  # Prevent automatic subfield mapping
+                            "enabled": False,  # Completely disable indexing of all subfields
+                        },
+                    },
+                },
+                # Indexed attributes
                 # attr_<attribute_name>_<os_type>
                 # We use the os_type in the name in order to avoid losing data if the schema type is changed
                 {

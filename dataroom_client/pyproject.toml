@@ -22,7 +22,7 @@ metadata = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
-httpx = ">=0.24.1,<1"
+httpx = ">=0.28.0,<1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]

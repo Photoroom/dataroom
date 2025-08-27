@@ -1,17 +1,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-
   /* Typography */
 
   --font-weight-*: initial;
   --font-weight-normal: 400;
   --font-weight-bold: 600;
 
-  --font-sans:
-    Inter, system-ui, -apple-system, Roboto, Segoe UI, Helvetica Neue, Arial,
-    sans-serif;
-    
+  --font-sans: Inter, system-ui, -apple-system, Roboto, Segoe UI, Helvetica Neue, Arial, sans-serif;
+
   /* Spacing */
 
   --gap-gutter: 1rem;
@@ -32,7 +29,7 @@
 
   --spacing-sidebar-open: 18rem;
   --spacing-sidebar-closed: 4rem;
-  
+
   --spacing-drawer: 22rem;
 
   /* Colors */
@@ -40,7 +37,6 @@
   --color-light-100: #ffffff;
   --color-light: #f3f4f6;
   --color-light-300: #d1d5db;
-
 
   --color-dark: #171717;
   --color-dark-100: #262626;

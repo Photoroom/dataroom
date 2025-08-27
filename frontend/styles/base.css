@@ -1,6 +1,7 @@
 /* Scrollbars */
 
-html, .light {
+html,
+.light {
   background-color: var(--color-light);
   color: var(--color-black);
 }

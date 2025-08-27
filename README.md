@@ -138,6 +138,11 @@ Restart specific service:
 docker compose restart opensearch
 ```
 
+Update poetry lock file after adding new dependencies to `pyproject.toml`:
+```bash
+./scripts/poetry-lock.sh
+```
+
 ### Static files in production
 
 - The entries in `rollupOptions` inside [vite.config.js](./vite.config.js) define which entry points are going to be built.

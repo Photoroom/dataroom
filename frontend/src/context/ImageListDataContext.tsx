@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from "react-router-dom";
-import { imagesList, imagesRandomRetrieve, imagesRetrieve, useImagesList, useImagesRandomRetrieve, useImagesSimilarList, useImagesSimilarToFileCreate, useImagesSimilarToTextCreate, useImagesSimilarToVectorCreate } from '../api/client';
-import { OSImage, PaginatedOSImage, SimilarOSImage } from '../api/client.schemas';
-import { axiosInstance } from '../api/axios';
-import toast from 'react-hot-toast';
-
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  imagesRandomRetrieve,
+  imagesRetrieve,
+  useImagesList,
+  useImagesRandomRetrieve,
+  useImagesSimilarList,
+  useImagesSimilarToFileCreate,
+  useImagesSimilarToTextCreate,
+  useImagesSimilarToVectorCreate,
+} from "../api/client";
+import { OSImage, PaginatedOSImage } from "../api/client.schemas";
+import { axiosInstance } from "../api/axios";
+import toast from "react-hot-toast";
 
 export enum ImageListMode {
   BROWSE = "browse",
@@ -19,6 +27,7 @@ export interface ImageListFilters {
   has_attributes: string[];
   has_latents: string[];
   duplicate_state: string | null;
+  datasets: string[];
 }
 
 interface ImageListDataContextType {
@@ -67,25 +76,22 @@ const PAGE_SIZE = 100;
 
 // -------------------- Data provider --------------------
 export function ImageListDataProvider({ children }: { children: React.ReactNode }) {
-  const urlParams = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // -------------------- Get initial URL state --------------------
-  const initialRandomPrefixLength = searchParams.get('prefix_length') ? Number(searchParams.get('prefix_length')) : 5;
-  const initialRandomNumPrefixes = searchParams.get('num_prefixes') ? Number(searchParams.get('num_prefixes')) : 100;
-  const initialSimilarImageId = searchParams.get('similar') || null;
-  const initialSimilarText = searchParams.get('similarText') || null;
-  const initialSimilarFile = searchParams.get('similarFile') || null;
-  const initialSimilarVector = searchParams.get('similarVector') || null;
+  const initialRandomPrefixLength = searchParams.get("prefix_length") ? Number(searchParams.get("prefix_length")) : 5;
+  const initialRandomNumPrefixes = searchParams.get("num_prefixes") ? Number(searchParams.get("num_prefixes")) : 100;
+  const initialSimilarImageId = searchParams.get("similar") || null;
+  const initialSimilarText = searchParams.get("similarText") || null;
 
   // -------------------- Mode state --------------------
   const [randomPrefixLength, setRandomPrefixLength] = useState(initialRandomPrefixLength);
   const [randomNumPrefixes, setRandomNumPrefixes] = useState(initialRandomNumPrefixes);
 
   const [mode, setMode] = useState<ImageListMode>(() => {
-    if (searchParams.get('similar') || searchParams.get('similarText')) {
+    if (searchParams.get("similar") || searchParams.get("similarText")) {
       return ImageListMode.SIMILAR;
-    } else if (searchParams.get('random') == 'true') {
+    } else if (searchParams.get("random") == "true") {
       return ImageListMode.RANDOM;
     } else {
       return ImageListMode.BROWSE;
@@ -98,11 +104,11 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     setSimilarText(null);
     setSimilarFile(null);
     setSimilarVector(null);
-  }
+  };
 
   const setModeRandom = () => {
     setMode(ImageListMode.RANDOM);
-  }
+  };
 
   // -------------------- Similar image --------------------
   const [similarImageId, setSimilarImageId] = useState<string | null>(initialSimilarImageId);
@@ -114,18 +120,20 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     setSimilarFile(null);
     setSimilarVector(null);
     setSimilarImageId(imageId);
-  }
+  };
 
   useEffect(() => {
     if (similarImageId) {
       imagesRetrieve(similarImageId, {
         include_fields: LIST_INCLUDE_FIELDS,
-      }).then((response) => {
-        setSimilarImage(response);
-      }).catch((e) => {
-        toast.error("Error loading similar image");
-        console.error(e);
-      });
+      })
+        .then(response => {
+          setSimilarImage(response);
+        })
+        .catch(e => {
+          toast.error("Error loading similar image");
+          console.error(e);
+        });
     } else {
       setSimilarImage(null);
     }
@@ -141,7 +149,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     setSimilarFile(null);
     setSimilarVector(null);
     setSimilarText(text);
-  }
+  };
 
   // -------------------- Similar file --------------------
   const [similarFile, setSimilarFile] = useState<File | null>(null);
@@ -153,7 +161,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     setSimilarText(null);
     setSimilarVector(null);
     setSimilarFile(file);
-  }
+  };
 
   // -------------------- Similar vector --------------------
   const [similarVector, setSimilarVector] = useState<string | null>(null);
@@ -165,7 +173,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     setSimilarText(null);
     setSimilarFile(null);
     setSimilarVector(vector);
-  }
+  };
 
   // -------------------- Image list state --------------------
   const [images, setImages] = useState<OSImage[]>([]);
@@ -182,40 +190,40 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     // random mode
     if (mode === ImageListMode.RANDOM) {
       setImagesNextUrl(null);
-      newParams.set('random', 'true');
-      newParams.set('prefix_length', randomPrefixLength.toString());
-      newParams.set('num_prefixes', randomNumPrefixes.toString());
+      newParams.set("random", "true");
+      newParams.set("prefix_length", randomPrefixLength.toString());
+      newParams.set("num_prefixes", randomNumPrefixes.toString());
     } else {
       setImagesNextUrl(null);
-      newParams.delete('random');
-      newParams.delete('prefix_length');
-      newParams.delete('num_prefixes');
+      newParams.delete("random");
+      newParams.delete("prefix_length");
+      newParams.delete("num_prefixes");
     }
 
     // similar mode
     if (mode === ImageListMode.SIMILAR && similarImageId) {
       setImagesNextUrl(null); // no pagination
-      newParams.set('similar', similarImageId);
+      newParams.set("similar", similarImageId);
     } else {
-      newParams.delete('similar');
+      newParams.delete("similar");
     }
     if (mode === ImageListMode.SIMILAR && similarText) {
       setImagesNextUrl(null); // no pagination
-      newParams.set('similarText', similarText);
+      newParams.set("similarText", similarText);
     } else {
-      newParams.delete('similarText');
+      newParams.delete("similarText");
     }
     if (mode === ImageListMode.SIMILAR && similarFile) {
       setImagesNextUrl(null); // no pagination
-      newParams.set('similarFile', 'true');
+      newParams.set("similarFile", "true");
     } else {
-      newParams.delete('similarFile');
+      newParams.delete("similarFile");
     }
     if (mode === ImageListMode.SIMILAR && similarVector) {
       setImagesNextUrl(null); // no pagination
-      newParams.set('similarVector', 'true');
+      newParams.set("similarVector", "true");
     } else {
-      newParams.delete('similarVector');
+      newParams.delete("similarVector");
     }
 
     // update the search params
@@ -232,50 +240,53 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     const isAlreadySelected = selectedImages.includes(imageId);
 
     if (isMultiSelect && lastSelectedImage) {
-      const lastSelectedIndex = images.findIndex((image) => image.id === lastSelectedImage);
-      const currentSelectedIndex = images.findIndex((image) => image.id === imageId);
+      const lastSelectedIndex = images.findIndex(image => image.id === lastSelectedImage);
+      const currentSelectedIndex = images.findIndex(image => image.id === imageId);
       const start = Math.min(lastSelectedIndex, currentSelectedIndex);
       const end = Math.max(lastSelectedIndex, currentSelectedIndex);
-      const selectedIds = images.slice(start, end + 1).map((image) => image.id);
+      const selectedIds = images.slice(start, end + 1).map(image => image.id);
       if (lastWasUnselected) {
-        setSelectedImages(selectedImages.filter((id) => !selectedIds.includes(id)));
+        setSelectedImages(selectedImages.filter(id => !selectedIds.includes(id)));
       } else {
-        setSelectedImages(selectedImages.concat(selectedIds).filter((value, index, self) => self.indexOf(value) === index));
+        setSelectedImages(
+          selectedImages.concat(selectedIds).filter((value, index, self) => self.indexOf(value) === index)
+        );
       }
     } else {
       if (isAlreadySelected) {
-        setSelectedImages(selectedImages.filter((id) => id !== imageId));
+        setSelectedImages(selectedImages.filter(id => id !== imageId));
       } else {
         setSelectedImages([...selectedImages, imageId]);
       }
     }
     setLastSelectedImage(imageId);
     setLastWasUnselected(isAlreadySelected);
-  }
+  };
 
   const clearSelectedImages = () => {
     setSelectedImages([]);
-  }
+  };
 
   // -------------------- Filters --------------------
   const [filters, setFilters] = useState<ImageListFilters>(() => {
     return {
-      sources: searchParams.get('sources')?.split(',') || [],
-      tags: searchParams.get('tags')?.split(',') || [],
-      aspect_ratio_fraction: searchParams.get('aspect_ratio_fraction') || null,
-      has_attributes: searchParams.get('has_attributes')?.split(',') || [],
-      has_latents: searchParams.get('has_latents')?.split(',') || [],
-      duplicate_state: searchParams.get('duplicate_state') || null,
+      sources: searchParams.get("sources")?.split(",") || [],
+      tags: searchParams.get("tags")?.split(",") || [],
+      aspect_ratio_fraction: searchParams.get("aspect_ratio_fraction") || null,
+      has_attributes: searchParams.get("has_attributes")?.split(",") || [],
+      has_latents: searchParams.get("has_latents")?.split(",") || [],
+      duplicate_state: searchParams.get("duplicate_state") || null,
+      datasets: searchParams.get("datasets")?.split(",") || [],
     };
   });
 
-  const getFiltersParams = (filters: ImageListFilters): {[key: string]: string} => {
-    let params: {[key: string]: string} = {};
+  const getFiltersParams = (filters: ImageListFilters): { [key: string]: string } => {
+    let params: { [key: string]: string } = {};
     for (const [key, value] of Object.entries(filters)) {
       if (value) {
         if (Array.isArray(value)) {
           if (value.length > 0) {
-            params[key] = value.join(',');
+            params[key] = value.join(",");
           } else {
             // skip it
           }
@@ -285,17 +296,18 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       }
     }
     return params;
-  }
+  };
 
   // keep URL in sync with filters
   useEffect(() => {
     const newParams = new URLSearchParams(searchParams);
-    newParams.delete('sources');
-    newParams.delete('tags');
-    newParams.delete('aspect_ratio_fraction');
-    newParams.delete('has_attributes');
-    newParams.delete('has_latents');
-    newParams.delete('duplicate_state');
+    newParams.delete("sources");
+    newParams.delete("tags");
+    newParams.delete("aspect_ratio_fraction");
+    newParams.delete("has_attributes");
+    newParams.delete("has_latents");
+    newParams.delete("duplicate_state");
+    newParams.delete("datasets");
     const filtersParams = getFiltersParams(filters);
     for (const [key, value] of Object.entries(filtersParams)) {
       newParams.set(key, value);
@@ -321,7 +333,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     {
       query: {
         enabled: mode === ImageListMode.BROWSE,
-      }
+      },
     }
   );
 
@@ -337,7 +349,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     {
       query: {
         enabled: mode === ImageListMode.RANDOM,
-      }
+      },
     }
   );
 
@@ -351,7 +363,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
     {
       query: {
         enabled: mode === ImageListMode.SIMILAR && !!similarImageId,
-      }
+      },
     }
   );
 
@@ -380,7 +392,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       similarFileMutation.mutate({
         data: {
           image: similarFile,
-          json: JSON.stringify({number: PAGE_SIZE}),
+          json: JSON.stringify({ number: PAGE_SIZE }),
         },
         params: {
           include_fields: LIST_INCLUDE_FIELDS,
@@ -428,17 +440,17 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       setImagesNextUrl(null);
     }
   }, [
-    browseQuery.data, 
-    randomQuery.data, 
-    similarImageQuery.data, 
-    similarTextMutation.data, 
+    browseQuery.data,
+    randomQuery.data,
+    similarImageQuery.data,
+    similarTextMutation.data,
     similarFileMutation.data,
     similarVectorMutation.data,
-    mode, 
-    similarImageId, 
+    mode,
+    similarImageId,
     similarText,
     similarFile,
-    similarVector
+    similarVector,
   ]);
 
   // Handle errors
@@ -468,17 +480,17 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       console.error(similarVectorMutation.error);
     }
   }, [
-    browseQuery.error, 
-    randomQuery.error, 
-    similarImageQuery.error, 
-    similarTextMutation.error, 
+    browseQuery.error,
+    randomQuery.error,
+    similarImageQuery.error,
+    similarTextMutation.error,
     similarFileMutation.error,
     similarVectorMutation.error,
-    mode, 
-    similarImageId, 
+    mode,
+    similarImageId,
     similarText,
     similarFile,
-    similarVector
+    similarVector,
   ]);
 
   // Combine loading states
@@ -512,19 +524,22 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       setIsLoadingNextPage(true);
       setIsLoadingNextPageError(false);
       axiosInstance<PaginatedOSImage>({
-        method: 'GET',
+        method: "GET",
         url: imagesNextUrl,
-      }).then((response) => {
-        const { results, next } = response;
-        setImages([...images, ...results]);
-        setImagesNextUrl(response.next);
-      }).catch((e) => {
-        toast.error("Error loading next page of images");
-        console.error(e);
-        setIsLoadingNextPageError(true);
-      }).finally(() => {
-        setIsLoadingNextPage(false);
-      });
+      })
+        .then(response => {
+          const { results } = response;
+          setImages([...images, ...results]);
+          setImagesNextUrl(response.next);
+        })
+        .catch(e => {
+          toast.error("Error loading next page of images");
+          console.error(e);
+          setIsLoadingNextPageError(true);
+        })
+        .finally(() => {
+          setIsLoadingNextPage(false);
+        });
     } else if (mode === ImageListMode.RANDOM) {
       // ------------ Random mode ------------
       // hit the same endpoint again
@@ -535,72 +550,77 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
         page_size: PAGE_SIZE,
         prefix_length: randomPrefixLength,
         num_prefixes: randomNumPrefixes,
-      }).then((response) => {
-        const { results, next } = response;
-        setImages([...images, ...results]);
-        setImagesNextUrl(response.next);
-      }).catch((e) => {
-        toast.error("Error loading next page of random images");
-        console.error(e);
-        setIsLoadingNextPageError(true);
-      }).finally(() => {
-        setIsLoadingNextPage(false);
-      });
+      })
+        .then(response => {
+          const { results } = response;
+          setImages([...images, ...results]);
+          setImagesNextUrl(response.next);
+        })
+        .catch(e => {
+          toast.error("Error loading next page of random images");
+          console.error(e);
+          setIsLoadingNextPageError(true);
+        })
+        .finally(() => {
+          setIsLoadingNextPage(false);
+        });
     } else if (mode === ImageListMode.SIMILAR) {
       // ------------ Similar mode ------------
       // pagination for similar images is not supported
     }
-  }
+  };
 
   // -------------------- Return --------------------
-  return (  
-    <ImageListDataContext.Provider value={{
-      // image list
-      images,
-      isLoadingImages,
-      isLoadingImagesError,
-      hasNextPage: imagesNextUrl !== null,
-      loadNextPage,
-      isLoadingNextPage,
-      isLoadingNextPageError,
-      // mode
-      mode,
-      setModeBrowse,
-      setModeRandom,
-      // similarity search
-      setModeSimilarImage,
-      similarImage,
-      setModeSimilarText,
-      similarText,
-      setModeSimilarFile,
-      similarFile,
-      setModeSimilarVector,
-      similarVector,
-      // selecting
-      isSelecting,
-      setIsSelecting,
-      selectedImages,
-      toggleSelectedImage,
-      clearSelectedImages,
-      // random
-      randomPrefixLength,
-      setRandomPrefixLength,
-      randomNumPrefixes,
-      setRandomNumPrefixes,
-      // filters
-      filters,
-      setFilters,
-    }}>
+  return (
+    <ImageListDataContext.Provider
+      value={{
+        // image list
+        images,
+        isLoadingImages,
+        isLoadingImagesError,
+        hasNextPage: imagesNextUrl !== null,
+        loadNextPage,
+        isLoadingNextPage,
+        isLoadingNextPageError,
+        // mode
+        mode,
+        setModeBrowse,
+        setModeRandom,
+        // similarity search
+        setModeSimilarImage,
+        similarImage,
+        setModeSimilarText,
+        similarText,
+        setModeSimilarFile,
+        similarFile,
+        setModeSimilarVector,
+        similarVector,
+        // selecting
+        isSelecting,
+        setIsSelecting,
+        selectedImages,
+        toggleSelectedImage,
+        clearSelectedImages,
+        // random
+        randomPrefixLength,
+        setRandomPrefixLength,
+        randomNumPrefixes,
+        setRandomNumPrefixes,
+        // filters
+        filters,
+        setFilters,
+      }}
+    >
       {children}
     </ImageListDataContext.Provider>
-  )
+  );
 }
 
 // hook to use the image data context
 export function useImageListData() {
   const context = useContext(ImageListDataContext);
   if (context === undefined) {
-    throw new Error('useImageListData must be used within a ImageListDataContext');
+    throw new Error("useImageListData must be used within a ImageListDataContext");
   }
   return context;
 }

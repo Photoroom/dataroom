@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import FastGlob from "fast-glob";
 
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: "/static/", // same as STATIC_URL
   root: './frontend/',
   build: {
@@ -18,8 +18,7 @@ export default defineConfig({
   },
   plugins: [
     react({
-      // Enable fast refresh only in development
-      fastRefresh: process.env.NODE_ENV !== 'production'
+      fastRefresh: command === 'serve',  // dev only
     }),
     {
       name: 'watch-external', // https://stackoverflow.com/questions/63373804/rollup-watch-include-directory/63548394#63548394
@@ -48,4 +47,4 @@ export default defineConfig({
       },
     }
   ],
-});
+}));

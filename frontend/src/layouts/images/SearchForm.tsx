@@ -8,11 +8,11 @@ import { OSImage } from "../../api/client.schemas";
 import { ImageUploadField } from "../../components/forms/ImageUploadField";
 
 enum SearchType {
-  NONE = 'none',
-  IMAGE = 'image',
-  TEXT = 'text',
-  FILE = 'file',
-  VECTOR = 'vector',
+  NONE = "none",
+  IMAGE = "image",
+  TEXT = "text",
+  FILE = "file",
+  VECTOR = "vector",
 }
 
 interface GetSearchTypeProps {
@@ -38,13 +38,12 @@ const getSearchType = (props: GetSearchTypeProps) => {
     return SearchType.VECTOR;
   }
   return SearchType.NONE;
-}
+};
 
 export const SearchForm: React.FC = () => {
   const {
     mode,
     similarImage,
-    setModeSimilarImage,
     similarText,
     setModeSimilarText,
     similarFile,
@@ -53,25 +52,29 @@ export const SearchForm: React.FC = () => {
     setModeSimilarVector,
   } = useImageListData();
 
-  const [textInput, setTextInput] = React.useState<string>(similarText || '');
-  const [vectorInput, setVectorInput] = React.useState<string>(similarVector || '');
+  const [textInput, setTextInput] = React.useState<string>(similarText || "");
+  const [vectorInput, setVectorInput] = React.useState<string>(similarVector || "");
 
-  const [searchType, setSearchType] = React.useState<SearchType>(getSearchType({
-    mode,
-    similarImage,
-    similarText,
-    similarFile,
-    similarVector,
-  }));
-  
-  useEffect(() => {
-    setSearchType(getSearchType({
+  const [searchType, setSearchType] = React.useState<SearchType>(
+    getSearchType({
       mode,
       similarImage,
       similarText,
       similarFile,
       similarVector,
-    }));
+    })
+  );
+
+  useEffect(() => {
+    setSearchType(
+      getSearchType({
+        mode,
+        similarImage,
+        similarText,
+        similarFile,
+        similarVector,
+      })
+    );
   }, [mode, similarImage, similarText, similarFile, similarVector]);
 
   // -------------------- Similar image --------------------
@@ -80,7 +83,9 @@ export const SearchForm: React.FC = () => {
       <div className="grid grid-cols-4 gap-2 bg-black/8 dark:bg-white/8 rounded-lg pr-2 pl-3 py-2">
         <div className="col-span-3 text-xs">
           <ArrowsRightLeftIcon className="inline-block mr-1 size-3 shrink-0" />
-          Similar to:<br/><span className="font-bold break-all">{similarImage.id}</span>
+          Similar to:
+          <br />
+          <span className="font-bold break-all">{similarImage.id}</span>
         </div>
         <Image image={similarImage} />
       </div>
@@ -94,14 +99,23 @@ export const SearchForm: React.FC = () => {
         <div className="grid grid-cols-4 gap-2 bg-black/8 dark:bg-white/8 rounded-lg pr-2 pl-3 py-2">
           <div className="col-span-3 text-xs">
             <ArrowsRightLeftIcon className="inline-block mr-1 size-3 shrink-0" />
-            Similar to:<br/><span className="font-bold break-all">Uploaded file</span>
+            Similar to:
+            <br />
+            <span className="font-bold break-all">Uploaded file</span>
           </div>
-          <div className="w-full aspect-square rounded-lg bg-black/8 dark:bg-white/8 bg-cover bg-center" style={{backgroundImage: `url('${URL.createObjectURL(similarFile)}')`}}></div>
+          <div
+            className="w-full aspect-square rounded-lg bg-black/8 dark:bg-white/8 bg-cover bg-center"
+            style={{ backgroundImage: `url('${URL.createObjectURL(similarFile)}')` }}
+          ></div>
         </div>
       );
     } else {
       return (
-        <ImageUploadField onUpload={(file) => { setModeSimilarFile(file) }} />
+        <ImageUploadField
+          onUpload={file => {
+            setModeSimilarFile(file);
+          }}
+        />
       );
     }
   }
@@ -113,18 +127,19 @@ export const SearchForm: React.FC = () => {
         <TextField
           name="vector"
           value={vectorInput}
-          onChange={(e) => {
+          onChange={e => {
             setVectorInput(e.target.value);
           }}
           className="pr-8"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+          onKeyDown={e => {
+            if (e.key === "Enter") {
               e.preventDefault();
               setModeSimilarVector(vectorInput);
             }
           }}
           inputRight={
-            <button type="button"
+            <button
+              type="button"
               className="pl-2 pr-3 cursor-pointer h-full opacity-50 hover:opacity-100 transition-opacity"
               onClick={() => {
                 setModeSimilarVector(vectorInput);
@@ -137,7 +152,7 @@ export const SearchForm: React.FC = () => {
       </div>
     );
   }
-  
+
   // -------------------- Text search --------------------
   if (searchType === SearchType.TEXT) {
     return (
@@ -145,18 +160,19 @@ export const SearchForm: React.FC = () => {
         <TextField
           name="text"
           value={textInput}
-          onChange={(e) => {
+          onChange={e => {
             setTextInput(e.target.value);
           }}
           className="pr-8"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+          onKeyDown={e => {
+            if (e.key === "Enter") {
               e.preventDefault();
               setModeSimilarText(textInput);
             }
           }}
           inputRight={
-            <button type="button"
+            <button
+              type="button"
               className="pl-2 pr-3 cursor-pointer h-full opacity-50 hover:opacity-100 transition-opacity"
               onClick={() => {
                 setModeSimilarText(textInput);
@@ -173,9 +189,30 @@ export const SearchForm: React.FC = () => {
   // -------------------- Select search type --------------------
   return (
     <div className="grid grid-cols-3 gap-2">
-      <button className="btn btn-outline btn-sm" onClick={() => { setSearchType(SearchType.TEXT) }}>Text</button>
-      <button className="btn btn-outline btn-sm" onClick={() => { setSearchType(SearchType.FILE) }}>Image</button>
-      <button className="btn btn-outline btn-sm" onClick={() => { setSearchType(SearchType.VECTOR) }}>Vector</button>
+      <button
+        className="btn btn-outline btn-sm"
+        onClick={() => {
+          setSearchType(SearchType.TEXT);
+        }}
+      >
+        Text
+      </button>
+      <button
+        className="btn btn-outline btn-sm"
+        onClick={() => {
+          setSearchType(SearchType.FILE);
+        }}
+      >
+        Image
+      </button>
+      <button
+        className="btn btn-outline btn-sm"
+        onClick={() => {
+          setSearchType(SearchType.VECTOR);
+        }}
+      >
+        Vector
+      </button>
     </div>
   );
 };

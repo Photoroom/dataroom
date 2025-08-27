@@ -26,19 +26,21 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(AttributesField)
 class AttributesFieldAdmin(admin.ModelAdmin):
+    change_form_template = "admin/custom/attributes_change_form.html"
     list_display = (
         "name",
         "json_schema",
         "is_required",
         "is_enabled",
+        "is_indexed",
         "is_mapped",
         "image_count",
     )
-    list_filter = ("is_required", "is_enabled", "is_mapped")
+    list_filter = ("is_required", "is_enabled", "is_indexed", "is_mapped")
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
-            return (
+            readonly_fields = (
                 "name",
                 "field_type",
                 "string_format",
@@ -48,6 +50,10 @@ class AttributesFieldAdmin(admin.ModelAdmin):
                 "is_mapped",
                 "image_count",
             )
+            # If this is an existing OBJECT type, make is_indexed readonly (always False)
+            if obj.field_type == 'object':
+                return (*readonly_fields, "is_indexed")
+            return readonly_fields
         return ()
 
     def has_delete_permission(self, request, obj=None):

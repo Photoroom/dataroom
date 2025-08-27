@@ -187,10 +187,14 @@ class DataRoomClient:
     ) -> list[dict]:
         items = []
         next_url = url
+        first_request = True
         while next_url:
+            # Only pass params on the first request; subsequent requests use the server's next URL
+            # which already contains the necessary parameters
             response = await self._make_request(
-                next_url, params=params, method=method, json=json, headers=headers,
+                next_url, params=params if first_request else None, method=method, json=json, headers=headers,
             )
+            first_request = False
             if "results" not in response:
                 raise NotImplementedError(f'No "results" in response to {url}')
             if "next" not in response:
@@ -209,10 +213,14 @@ class DataRoomClient:
     ) -> AsyncIterable[dict]:
         next_url = url
         returned_items = 0
+        first_request = True
         while next_url:
+            # Only pass params on the first request; subsequent requests use the server's next URL
+            # which already contains the necessary parameters
             response = await self._make_request(
-                next_url, params=params, method=method, json=json, headers=headers,
+                next_url, params=params if first_request else None, method=method, json=json, headers=headers,
             )
+            first_request = False
             if "results" not in response:
                 raise NotImplementedError(f'No "results" in response to {url}')
             if "next" not in response:

@@ -22,21 +22,30 @@ logger = logging.getLogger('task_runner')
 logger.setLevel(logging.INFO)
 
 
-def init_django(settings_name):
+def init_django(settings_name: str | None = None) -> None:
     # initialize Django and settings
     from django.apps import apps
 
     if not apps.ready:
-        settings_module = f"backend.config.settings.{settings_name}"
-        logger.info(f"Initializing Django with settings module {settings_module}...")
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", settings_module)
+        if settings_name:
+            settings_module = f"backend.config.settings.{settings_name}"
+            logger.info(f"Initializing Django with settings module {settings_module}...")
+            os.environ.setdefault("DJANGO_SETTINGS_MODULE", settings_module)
+        else:
+            env_settings = os.environ.get("DJANGO_SETTINGS_MODULE")
+            if not env_settings:
+                raise RuntimeError(
+                    "DJANGO_SETTINGS_MODULE is not set. "
+                    "Either set it in the environment or pass the --settings parameter."
+                )
+
         import django
 
         django.setup()
 
 
 class DjangoSetupPlugin(WorkerPlugin):
-    def __init__(self, settings_name):
+    def __init__(self, settings_name: str | None = None):
         super().__init__()
         self.settings_name = settings_name
 
@@ -213,7 +222,7 @@ def main():
     parser.add_argument(
         '--settings',
         type=str,
-        default='prod',
+        default=None,
         required=False,
     )
     parser.add_argument(
