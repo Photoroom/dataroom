@@ -3,6 +3,7 @@ import functools
 import inspect
 import threading
 import atexit
+import queue
 from datetime import datetime
 import json as json_module
 import logging
@@ -1815,6 +1816,17 @@ class AsyncRunner:
         return future.result()
 
     @classmethod
+    def submit(cls, coro):
+        """
+        Schedule a coroutine on the shared background event loop and return the Future.
+
+        Unlike run(), this does not wait for the result; useful for producers feeding queues.
+        """
+        if cls._thread is None:
+            cls._initialize()
+        return asyncio.run_coroutine_threadsafe(coro, cls._loop)
+
+    @classmethod
     def shutdown(cls) -> None:
         """
         Cleanly stops the shared event loop.
@@ -1866,6 +1878,9 @@ class DataRoomClientSync:
             result = attr(*args, **kwargs)
             if inspect.isawaitable(result):
                 return AsyncRunner.run(result)
+            # If the result is an async generator or async iterable, wrap it into a blocking iterator
+            if inspect.isasyncgen(result) or hasattr(result, "__aiter__"):
+                return self._wrap_async_iterable(result)
             return result
 
         return sync_wrapper
@@ -1887,3 +1902,68 @@ class DataRoomClientSync:
         """
         # Class methods are not covered by the automatic wrapping of async methods in __getattr__.
         return AsyncRunner.run(DataRoomClient.download_image_from_url(*args, **kwargs))
+
+    @staticmethod
+    def _wrap_async_iterable(async_iterable):
+        """
+        Convert an AsyncIterable into a synchronous, blocking Python iterator.
+        Items are streamed via a thread-safe queue from a background task.
+        """
+        sentinel = object()
+        q: queue.Queue = queue.Queue(maxsize=10)
+        stop_flag = {"stop": False}
+
+        async def aclose_safe(ait):
+            aclose = getattr(ait, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception:  # pragma: no cover - best effort cleanup
+                    pass
+
+        async def producer():
+            try:
+                async for item in async_iterable:
+                    if stop_flag["stop"]:
+                        await aclose_safe(async_iterable)
+                        break
+                    while True:
+                        try:
+                            q.put_nowait(item)
+                            break
+                        except queue.Full:
+                            if stop_flag["stop"]:
+                                await aclose_safe(async_iterable)
+                                return
+                            await asyncio.sleep(0.01)
+            except Exception as e:
+                # pass exception to consumer then terminate
+                try:
+                    q.put_nowait(e)
+                except queue.Full:
+                    # If full, block briefly in thread to ensure delivery
+                    q.put(e)
+            finally:
+                # Signal completion
+                try:
+                    q.put_nowait(sentinel)
+                except queue.Full:
+                    q.put(sentinel)
+
+        # Start the producer without blocking
+        AsyncRunner.submit(producer())
+
+        def iterator():
+            try:
+                while True:
+                    item = q.get()
+                    if item is sentinel:
+                        break
+                    if isinstance(item, Exception):
+                        raise item
+                    yield item
+            finally:
+                # Signal producer to stop; it will close the async generator promptly
+                stop_flag["stop"] = True
+
+        return iterator()

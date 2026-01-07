@@ -204,7 +204,8 @@ async def test_delete_duplicates(tests_path, DataRoom, image_logo, image_logo_al
     await sync_to_async(image_perfume.save)(fields=['duplicate_state'])
 
     image_ids = await sync_to_async(get_images_marked_as_duplicates)(sources=['test'])
-    assert image_ids == ['test-logo_alt', 'test-logo_small']
+    # Ordering isn't guaranteed; make assertion deterministic.
+    assert sorted(image_ids) == ['test-logo_alt', 'test-logo_small']
 
     # reload from os
     image_logo = await sync_to_async(OSImage.objects.get)(id=image_logo.id, fields=['id', 'image', 'thumbnail', 'latents'])

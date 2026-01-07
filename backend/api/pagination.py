@@ -33,5 +33,4 @@ class CustomCursorPagination(CursorPagination):
                         f'Page size should be at most {self.max_page_size}.',
                     )
                 return page_size
-
         return self.page_size

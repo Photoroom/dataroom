@@ -5,8 +5,8 @@ set -e
 ENV=${1:-prod}
 
 # Validate environment
-if [ "$ENV" != "dev" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "prod" ]; then
-    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'staging', or 'prod'"
+if [ "$ENV" != "dev" ] && [ "$ENV" != "eval" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "prod" ]; then
+    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'eval', 'staging', or 'prod'"
     exit 1
 fi
 
@@ -16,6 +16,9 @@ echo "Running migrations for $ENV environment..."
 case $ENV in
     "prod")
         DJANGO_SETTINGS="backend.config.settings.prod"
+        ;;
+    "eval")
+        DJANGO_SETTINGS="backend.config.settings.eval"
         ;;
     "dev")
         DJANGO_SETTINGS="backend.config.settings.dev"

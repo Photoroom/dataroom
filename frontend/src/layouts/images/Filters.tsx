@@ -16,7 +16,14 @@ export const Filters: React.FC = () => {
 
   // -------------------- Sources --------------------
   const [sources, setSources] = useState<string[]>(filters.sources);
-  const { data: allSources, isLoading: isLoadingSources, isError: isErrorSources } = useStatsImageSourcesRetrieve();
+  const [sourcesSearch, setSourcesSearch] = useState("");
+  const {
+    data: allSources,
+    isLoading: isLoadingSources,
+    isError: isErrorSources,
+  } = useStatsImageSourcesRetrieve({
+    search: sourcesSearch,
+  });
 
   useEffect(() => {
     if (isErrorSources) {
@@ -26,7 +33,14 @@ export const Filters: React.FC = () => {
 
   // -------------------- Tags --------------------
   const [tags, setTags] = useState<string[]>(filters.tags);
-  const { data: allTags, isLoading: isLoadingTags, isError: isErrorTags } = useTagsList();
+  const [tagsSearch, setTagsSearch] = useState("");
+  const {
+    data: allTags,
+    isLoading: isLoadingTags,
+    isError: isErrorTags,
+  } = useTagsList({
+    search: tagsSearch,
+  });
 
   useEffect(() => {
     if (isErrorTags) {
@@ -36,11 +50,19 @@ export const Filters: React.FC = () => {
 
   // -------------------- Aspect Ratio --------------------
   const [aspectRatio, setAspectRatio] = useState<string | null>(filters.aspect_ratio_fraction);
+  const [aspectRatioSearch, setAspectRatioSearch] = useState("");
   const {
     data: allAspectRatios,
     isLoading: isLoadingAspectRatios,
     isError: isErrorAspectRatios,
   } = useStatsImageAspectRatioFractionsRetrieve();
+
+  const filteredAspectRatios = Object.entries(allAspectRatios || {})
+    .filter(([value]) => value.toLowerCase().includes(aspectRatioSearch.toLowerCase()))
+    .map(([value, count]) => ({
+      value,
+      count,
+    }));
 
   useEffect(() => {
     if (isErrorAspectRatios) {
@@ -50,7 +72,14 @@ export const Filters: React.FC = () => {
 
   // -------------------- Atributes --------------------
   const [attributes, setAttributes] = useState<string[]>(filters.has_attributes);
-  const { data: allAttributes, isLoading: isLoadingAttributes, isError: isErrorAttributes } = useStatsAttributesList();
+  const [attributesSearch, setAttributesSearch] = useState("");
+  const {
+    data: allAttributes,
+    isLoading: isLoadingAttributes,
+    isError: isErrorAttributes,
+  } = useStatsAttributesList({
+    search: attributesSearch,
+  });
 
   useEffect(() => {
     if (isErrorAttributes) {
@@ -60,7 +89,15 @@ export const Filters: React.FC = () => {
 
   // -------------------- Latents --------------------
   const [latents, setLatents] = useState<string[]>(filters.has_latents);
+  const [latentsSearch, setLatentsSearch] = useState("");
   const { data: allLatents, isLoading: isLoadingLatents, isError: isErrorLatents } = useStatsLatentTypesList();
+
+  const filteredLatents = (allLatents || [])
+    .filter(latent => latent.name.toLowerCase().includes(latentsSearch.toLowerCase()))
+    .map(latent => ({
+      value: latent.name,
+      count: latent.image_count,
+    }));
 
   useEffect(() => {
     if (isErrorLatents) {
@@ -78,7 +115,14 @@ export const Filters: React.FC = () => {
 
   // -------------------- Datasets --------------------
   const [datasets, setDatasets] = useState<string[]>(filters.datasets);
-  const { data: datasetsResponse, isLoading: isLoadingDatasets, isError: isErrorDatasets } = useDatasetsList();
+  const [datasetsSearch, setDatasetsSearch] = useState("");
+  const {
+    data: datasetsResponse,
+    isLoading: isLoadingDatasets,
+    isError: isErrorDatasets,
+  } = useDatasetsList({
+    search: datasetsSearch,
+  });
 
   useEffect(() => {
     if (isErrorDatasets) {
@@ -113,6 +157,7 @@ export const Filters: React.FC = () => {
         }))}
         selected={sources}
         onChange={selected => setSources(selected)}
+        onSearch={setSourcesSearch}
         allowMultiple={true}
       />
       <ChoiceFilter
@@ -126,17 +171,16 @@ export const Filters: React.FC = () => {
         }
         selected={tags}
         onChange={selected => setTags(selected)}
+        onSearch={setTagsSearch}
         allowMultiple={true}
       />
       <ChoiceFilter
         label="Aspect Ratio"
         isLoading={isLoadingAspectRatios}
-        choices={Object.entries(allAspectRatios || {}).map(([value, count]) => ({
-          value,
-          count,
-        }))}
+        choices={filteredAspectRatios}
         selected={aspectRatio ? [aspectRatio] : []}
         onChange={selected => setAspectRatio(selected[0])}
+        onSearch={setAspectRatioSearch}
         allowMultiple={false}
       />
       <ChoiceFilter
@@ -152,19 +196,16 @@ export const Filters: React.FC = () => {
         }
         selected={attributes}
         onChange={selected => setAttributes(selected)}
+        onSearch={setAttributesSearch}
         allowMultiple={true}
       />
       <ChoiceFilter
         label="Latents"
         isLoading={isLoadingLatents}
-        choices={
-          allLatents?.map(latent => ({
-            value: latent.name,
-            count: latent.image_count,
-          })) || []
-        }
+        choices={filteredLatents}
         selected={latents}
         onChange={selected => setLatents(selected)}
+        onSearch={setLatentsSearch}
         allowMultiple={true}
       />
       <ChoiceFilter
@@ -186,6 +227,7 @@ export const Filters: React.FC = () => {
         }
         selected={datasets}
         onChange={selected => setDatasets(selected)}
+        onSearch={setDatasetsSearch}
         allowMultiple={true}
       />
     </div>

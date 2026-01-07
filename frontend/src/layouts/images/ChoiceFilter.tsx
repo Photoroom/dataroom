@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Checkbox } from "../../components/forms/Checkbox";
 import { Radio } from "../../components/forms/Radio";
 import { XMarkIcon } from "@heroicons/react/20/solid";
@@ -41,6 +41,7 @@ interface ChoiceFilterProps {
   choices: Choice[];
   selected: string[];
   onChange: (selected: string[]) => void;
+  onSearch?: (query: string) => void;
   allowMultiple?: boolean;
   initialShowCount?: number;
 }
@@ -51,15 +52,27 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
   choices,
   selected,
   onChange,
+  onSearch,
   allowMultiple = false,
   initialShowCount = 5,
 }) => {
   const [showAll, setShowAll] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (onSearch) {
+        onSearch(searchTerm);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, onSearch]);
+
   const hasMoreChoices = choices.length > initialShowCount;
   const initialChoices = choices.slice(0, initialShowCount);
-  const remainingChoices = choices.slice(initialShowCount);
+  const remainingChoices = choices.slice(initialShowCount, 100); // Limit to 100 items max
 
-  const hiddenCount = choices.length - initialShowCount;
+  const hiddenCount = Math.min(choices.length, 100) - initialShowCount;
 
   const handleChoiceChange = (choice: Choice, checked: boolean) => {
     if (allowMultiple) {
@@ -82,6 +95,17 @@ export const ChoiceFilter: React.FC<ChoiceFilterProps> = ({
           </button>
         )}
       </div>
+
+      {onSearch && (choices.length > 5 || searchTerm) && (
+        <input
+          type="text"
+          placeholder={`Search ${label}...`}
+          className="w-full px-2 py-1 text-xs border rounded border-black/10 dark:border-white/10 bg-transparent focus:outline-none focus:border-primary"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+      )}
+
       <div className="flex flex-col gap-2 px-0.5">
         {isLoading && (
           <>

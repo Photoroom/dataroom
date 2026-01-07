@@ -1,6 +1,7 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -17,6 +18,8 @@ from backend.dataroom.opensearch import OSBulkIndex
 
 class TagViewSet(ModelViewSet):
     ordering = ['-image_count', 'name']
+    filter_backends = [SearchFilter]
+    search_fields = ['name']
 
     def get_serializer_class(self):
         return TagSerializer
