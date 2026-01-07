@@ -519,6 +519,10 @@ cursor?: string;
  * Number of results to return per page.
  */
 page_size?: number;
+/**
+ * A search term.
+ */
+search?: string;
 slug?: string;
 };
 
@@ -1698,7 +1702,21 @@ tags__ne?: string[];
 tags__ne_all?: string[];
 };
 
+export type StatsAttributesListParams = {
+/**
+ * Search term
+ */
+search?: string;
+};
+
 export type StatsImageAspectRatioFractionsRetrieve200 = {[key: string]: number};
+
+export type StatsImageSourcesRetrieveParams = {
+/**
+ * Search term
+ */
+search?: string;
+};
 
 export type StatsImageSourcesRetrieve200 = {[key: string]: number};
 
@@ -1711,6 +1729,10 @@ cursor?: string;
  * Number of results to return per page.
  */
 page_size?: number;
+/**
+ * A search term.
+ */
+search?: string;
 };
 
 export type TokensListParams = {

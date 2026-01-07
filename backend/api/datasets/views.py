@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -20,8 +21,9 @@ class DatasetViewSet(ModelViewSet):
     ordering = ['slug', '-version']
     lookup_field = 'slug_version'
     lookup_value_regex = r'[^/.]+\/[0-9]+'
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['slug']
+    search_fields = ['slug']
 
     def get_queryset(self):
         return Dataset.objects.all().select_related('author')

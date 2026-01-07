@@ -1,15 +1,11 @@
 from .base import *  # noqa: F403
 
-# Settings for development deployment (dataroom-dev ECS)
+# Settings for eval environment
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
 
-# DEBUG
-# ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#debug
-# DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
 # SECURITY
 # ------------------------------------------------------------------------------
@@ -127,45 +123,3 @@ AWS_OPEN_SEARCH_REGION_NAME = env('AWS_OPEN_SEARCH_REGION_NAME')
 
 # task params
 DUPLICATE_DELETE_TASK_INCLUDED_SOURCES = env.list('DUPLICATE_DELETE_TASK_INCLUDED_SOURCES', default='')
-
-
-# LOGGING - Enhanced for development
-# ------------------------------------------------------------------------------
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-        },
-    },
-    "root": {"level": "INFO", "handlers": ["console"]},
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "django.utils.autoreload": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "task_runner": {
-            "handlers": ["console"],
-            "level": "DEBUG",  # More verbose than prod
-            "propagate": False,
-        },
-        "dataroom": {
-            "handlers": ["console"],
-            "level": "DEBUG",  # App-specific logging
-            "propagate": False,
-        },
-        "opensearch": {
-            "handlers": ["console"],
-            "level": "INFO",  # Less restrictive than prod
-            "propagate": False,
-        },
-    },
-}

@@ -25,11 +25,12 @@ class StatsManager(models.Manager):
             return self._get_stats_dict(stats)
         return self._get_stats_dict()
 
-    def get_image_sources(self):
-        stats = [
-            (s['group_name'], s['value'])
-            for s in self.filter(stats_type=StatsType.IMAGE_SOURCES).values('group_name', 'value')
-        ]
+    def get_image_sources(self, search_query=None):
+        queryset = self.filter(stats_type=StatsType.IMAGE_SOURCES)
+        if search_query:
+            queryset = queryset.filter(group_name__icontains=search_query)
+
+        stats = [(s['group_name'], s['value']) for s in queryset.values('group_name', 'value')]
         return sorted(stats, key=lambda x: x[1], reverse=True)
 
     def get_image_aspect_ratio_fractions(self):

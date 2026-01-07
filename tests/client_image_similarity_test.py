@@ -91,6 +91,8 @@ async def test_image_get_similar_to_vector(DataRoom, tests_path, image_logo, ima
     vector = str(image_logo.coca_embedding_vector)
     response = await DataRoom.get_similar_images(image_vector=vector, number=2, fields=['id', 'source'])
     assert len(response) == 2
+    # OpenSearch can return ties / near-ties in different orders depending on shard/engine details in CI.
+    response = sorted(response, key=lambda r: (-r["similarity"], r["id"]))
     assert response[0]['id'] == 'test-logo'
     assert response[0]['source'] == 'test'
     assert round(response[0]['similarity'], 3) == 1.0

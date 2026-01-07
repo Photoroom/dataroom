@@ -63,8 +63,10 @@ import type {
   SimilarOSImage,
   SimilarToText,
   SimilarToVector,
+  StatsAttributesListParams,
   StatsImageAspectRatioFractionsRetrieve200,
   StatsImageSourcesRetrieve200,
+  StatsImageSourcesRetrieveParams,
   Tag,
   TagImagesResponse,
   TagsListParams,
@@ -2619,33 +2621,34 @@ export function useStatsRetrieve<TData = Awaited<ReturnType<typeof statsRetrieve
 
 
 export const statsAttributesList = (
-    
+    params?: StatsAttributesListParams,
  options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
 ) => {
       
       
       return axiosInstance<AttributeField[]>(
-      {url: `/api/stats/attributes/`, method: 'GET', signal
+      {url: `/api/stats/attributes/`, method: 'GET',
+        params, signal
     },
       options);
     }
   
 
-export const getStatsAttributesListQueryKey = () => {
-    return [`/api/stats/attributes/`] as const;
+export const getStatsAttributesListQueryKey = (params?: StatsAttributesListParams,) => {
+    return [`/api/stats/attributes/`, ...(params ? [params]: [])] as const;
     }
 
     
-export const getStatsAttributesListQueryOptions = <TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+export const getStatsAttributesListQueryOptions = <TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>(params?: StatsAttributesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getStatsAttributesListQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getStatsAttributesListQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof statsAttributesList>>> = ({ signal }) => statsAttributesList(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statsAttributesList>>> = ({ signal }) => statsAttributesList(params, requestOptions, signal);
 
       
 
@@ -2669,7 +2672,7 @@ export type StatsAttributesListQueryError = unknown
 
 
 export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>> & Pick<
+ params: undefined |  StatsAttributesListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof statsAttributesList>>,
           TError,
@@ -2679,7 +2682,7 @@ export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAt
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>> & Pick<
+ params?: StatsAttributesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof statsAttributesList>>,
           TError,
@@ -2689,16 +2692,16 @@ export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAt
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ params?: StatsAttributesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useStatsAttributesList<TData = Awaited<ReturnType<typeof statsAttributesList>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ params?: StatsAttributesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsAttributesList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getStatsAttributesListQueryOptions(options)
+  const queryOptions = getStatsAttributesListQueryOptions(params,options)
 
   const query = useQuery(queryOptions , queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -2803,33 +2806,34 @@ export function useStatsImageAspectRatioFractionsRetrieve<TData = Awaited<Return
 
 
 export const statsImageSourcesRetrieve = (
-    
+    params?: StatsImageSourcesRetrieveParams,
  options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
 ) => {
       
       
       return axiosInstance<StatsImageSourcesRetrieve200>(
-      {url: `/api/stats/image_sources/`, method: 'GET', signal
+      {url: `/api/stats/image_sources/`, method: 'GET',
+        params, signal
     },
       options);
     }
   
 
-export const getStatsImageSourcesRetrieveQueryKey = () => {
-    return [`/api/stats/image_sources/`] as const;
+export const getStatsImageSourcesRetrieveQueryKey = (params?: StatsImageSourcesRetrieveParams,) => {
+    return [`/api/stats/image_sources/`, ...(params ? [params]: [])] as const;
     }
 
     
-export const getStatsImageSourcesRetrieveQueryOptions = <TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+export const getStatsImageSourcesRetrieveQueryOptions = <TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>(params?: StatsImageSourcesRetrieveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getStatsImageSourcesRetrieveQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getStatsImageSourcesRetrieveQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>> = ({ signal }) => statsImageSourcesRetrieve(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>> = ({ signal }) => statsImageSourcesRetrieve(params, requestOptions, signal);
 
       
 
@@ -2853,7 +2857,7 @@ export type StatsImageSourcesRetrieveQueryError = unknown
 
 
 export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>> & Pick<
+ params: undefined |  StatsImageSourcesRetrieveParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof statsImageSourcesRetrieve>>,
           TError,
@@ -2863,7 +2867,7 @@ export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof s
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>> & Pick<
+ params?: StatsImageSourcesRetrieveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof statsImageSourcesRetrieve>>,
           TError,
@@ -2873,16 +2877,16 @@ export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof s
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ params?: StatsImageSourcesRetrieveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useStatsImageSourcesRetrieve<TData = Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ params?: StatsImageSourcesRetrieveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statsImageSourcesRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getStatsImageSourcesRetrieveQueryOptions(options)
+  const queryOptions = getStatsImageSourcesRetrieveQueryOptions(params,options)
 
   const query = useQuery(queryOptions , queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
