@@ -30,6 +30,11 @@ jobs:
         env:
           discovery.type: single-node
           plugins.security.disabled: true
+          # Ensure the cluster starts in a writable state (some runner environments can inherit blocks)
+          cluster.blocks.create_index: "false"
+          cluster.blocks.read_only: "false"
+          # CI runners can have very constrained Docker disk; disable disk watermarks for tests.
+          cluster.routing.allocation.disk.threshold_enabled: "false"
           ES_JAVA_OPTS: "-Xms512m -Xmx512m"
           OPENSEARCH_INITIAL_ADMIN_PASSWORD: "DevOnly-pass43431"
         options: >-
@@ -37,11 +42,31 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --ulimit nofile=65536:65536
         ports:
           - 9200:9200
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Free disk space (CI, conditional)
+        run: |
+          set -euo pipefail
+          echo "== Disk before cleanup =="
+          df -h
+          # If available space is low, remove preinstalled toolchains we don't use in this workflow.
+          avail_gb=$(df -BG / | awk 'NR==2 {gsub(/G/,"",$4); print $4}')
+          if [ "${avail_gb:-0}" -lt 10 ]; then
+            echo "Low disk (${avail_gb}G available). Cleaning up preinstalled toolchains..."
+            sudo rm -rf /usr/share/dotnet || true
+            sudo rm -rf /usr/local/lib/android || true
+            sudo rm -rf /opt/ghc || true
+            sudo apt-get clean || true
+          else
+            echo "Sufficient disk (${avail_gb}G available). Skipping cleanup."
+          fi
+          echo "== Disk after cleanup =="
+          df -h
 
       - name: Create DB
         run: PGPASSWORD=postgres createdb -h localhost -p 5432 -U postgres dataroom
@@ -86,7 +111,34 @@ jobs:
           source .venv/bin/activate
           python manage.py makemigrations --check --dry-run --settings=backend.config.settings.test
 
+      - name: Unblock OpenSearch
+        run: |
+          # Some runner environments start with very constrained Docker disk.
+          # OpenSearch can then trigger the flood-stage watermark and set indices read-only (allow delete).
+          # For CI tests, clear index-level blocks so we can index documents.
+          set -euo pipefail
+
+          # OpenSearch can accept connections before it is fully ready, and sometimes resets connections while starting.
+          # Retry until the cluster answers a simple request.
+          for i in $(seq 1 30); do
+            if curl -fsS "http://localhost:9200/_cluster/health" >/dev/null; then
+              break
+            fi
+            echo "Waiting for OpenSearch... ($i/30)"
+            sleep 2
+          done
+
+          # Cluster-level settings are configured via service env in this workflow. Here we only clear any
+          # index-level read-only blocks that might already be set.
+          # Clear any index-level read-only blocks that may already have been set by flood-stage watermark.
+          curl -sS --retry 20 --retry-all-errors --retry-delay 1 -X PUT "http://localhost:9200/_all/_settings" \
+            -H "Content-Type: application/json" \
+            -d '{"index.blocks.read_only_allow_delete": null, "index.blocks.read_only": null, "index.blocks.write": null}'
+          echo ""
+          curl -sS --retry 10 --retry-all-errors --retry-delay 1 "http://localhost:9200/_cluster/settings?include_defaults=true" || true
+
       - name: Setup opensearch
+        # GH Actions services are exposed to the runner via localhost port mapping (not via service DNS).
         run: |
           source .venv/bin/activate
           python manage.py setup_opensearch --confirm --settings=backend.config.settings.test
