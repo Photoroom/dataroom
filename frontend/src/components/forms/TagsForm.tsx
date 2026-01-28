@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Tag } from "../../api/client.schemas";
 import { useTagsList } from "../../api/client";
-import { TagInput } from "./TagInput";
+import { TagInput, TagInputHandle } from "./TagInput";
 import toast from "react-hot-toast";
 
 interface TagsFormProps {
@@ -12,6 +12,7 @@ interface TagsFormProps {
 
 export const TagsForm: React.FC<TagsFormProps> = ({ initialTags, onSubmit, isLoading }) => {
   const [selectedTags, setSelectedTags] = React.useState<string[]>(initialTags ?? []);
+  const tagInputRef = useRef<TagInputHandle>(null);
 
   // -------------------- Fetch tags --------------------
   const [availableTags, setAvailableTags] = React.useState<Tag[]>([]);
@@ -32,7 +33,10 @@ export const TagsForm: React.FC<TagsFormProps> = ({ initialTags, onSubmit, isLoa
   // -------------------- Submit --------------------
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(selectedTags);
+    // Add any pending tag from the input before submitting
+    const pendingTag = tagInputRef.current?.addPendingTag();
+    const tagsToSubmit = pendingTag ? [...selectedTags, pendingTag] : selectedTags;
+    onSubmit(tagsToSubmit);
   };
 
   // -------------------- Render --------------------
@@ -40,6 +44,7 @@ export const TagsForm: React.FC<TagsFormProps> = ({ initialTags, onSubmit, isLoa
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div>
         <TagInput
+          ref={tagInputRef}
           value={selectedTags}
           onChange={value => {
             setSelectedTags(value);
