@@ -1,4 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+
+export interface TagInputHandle {
+  addPendingTag: () => string | undefined;
+}
 
 interface TagInputProps {
   value: string[];
@@ -7,9 +11,14 @@ interface TagInputProps {
   placeholder?: string;
 }
 
-export const TagInput: React.FC<TagInputProps> = props => {
+export const TagInput = forwardRef<TagInputHandle, TagInputProps>((props, ref) => {
   const { value = [], onChange = () => {}, options = [], placeholder } = props;
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Expose addPendingTag to parent components
+  useImperativeHandle(ref, () => ({
+    addPendingTag: addTag,
+  }));
 
   useEffect(() => {
     const blurListener = addTag;
@@ -41,23 +50,25 @@ export const TagInput: React.FC<TagInputProps> = props => {
     }
   };
 
-  function addTag() {
+  function addTag(): string | undefined {
     if (!inputRef.current) {
-      return;
+      return undefined;
     }
 
     let newTagValue = inputRef.current.value;
     newTagValue = newTagValue.trim();
 
     if (!newTagValue.length) {
-      return;
+      return undefined;
     }
     if (value.includes(newTagValue)) {
-      return;
+      inputRef.current.value = "";
+      return undefined;
     }
 
     inputRef.current.value = "";
     onChange([...value, newTagValue]);
+    return newTagValue;
   }
 
   function removeTag(removedTag: string) {
@@ -69,6 +80,15 @@ export const TagInput: React.FC<TagInputProps> = props => {
       return;
     }
     inputRef.current.focus();
+  }
+
+  // Handle datalist selection - auto-add tag when an option is selected
+  function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const inputValue = event.target.value;
+    // Check if the input value matches one of the datalist options
+    if (options.includes(inputValue)) {
+      addTag();
+    }
   }
 
   return (
@@ -92,6 +112,7 @@ export const TagInput: React.FC<TagInputProps> = props => {
         className="grow border-0 bg-transparent px-2 h-[32px] outline-0 ring-0 focus:border-0 focus:outline-0 focus:ring-0"
         type="text"
         onKeyDown={onKeyDown}
+        onChange={handleInputChange}
         ref={inputRef}
         list="tags"
         placeholder={placeholder}
@@ -106,4 +127,6 @@ export const TagInput: React.FC<TagInputProps> = props => {
       </datalist>
     </div>
   );
-};
+});
+
+TagInput.displayName = "TagInput";
