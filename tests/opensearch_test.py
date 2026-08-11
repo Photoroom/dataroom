@@ -2,7 +2,7 @@ import pytest
 from asgiref.sync import sync_to_async
 
 from backend.dataroom.models import AttributesField, AttributesSchema, LatentType
-from backend.dataroom.models.os_image import OSImage
+from backend.dataroom.models.os_image import OSImage, OSImageDatasets
 from dataroom_client import DataRoomFile
 
 
@@ -34,6 +34,7 @@ def test_os_image_serialized_simple(image_logo):
         "duplicate_state": None,
         "related_images": {},
         "datasets": [],
+        "memberships": [],
     }
 
     es_json = image_logo.to_json(all_fields=True)
@@ -66,6 +67,7 @@ def test_os_image_serialized_simple(image_logo):
         "duplicate_state": None,
         "related_images": {},
         "datasets": [],
+        "memberships": [],
     }
 
 
@@ -90,7 +92,6 @@ def test_os_image_serialized_no_coca(os_image):
     es_doc = os_image.to_doc(fields=["coca_embedding"])
     assert es_doc == {
         "coca_embedding_exists": False,
-        "coca_embedding_vector": None,
         "coca_embedding_author": None,
     }
 
@@ -115,11 +116,11 @@ def test_os_image_serialized_no_coca(os_image):
         "original_url": None,
         "tags": [],
         "coca_embedding_exists": False,
-        "coca_embedding_vector": None,
         "coca_embedding_author": None,
         "duplicate_state": None,
         "related_images": {},
         "datasets": [],
+        "memberships": [],
     }
 
     es_json = os_image.to_json(all_fields=True)
@@ -149,6 +150,7 @@ def test_os_image_serialized_no_coca(os_image):
         "duplicate_state": None,
         "related_images": {},
         "datasets": [],
+        "memberships": [],
     }
 
 
@@ -205,15 +207,17 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
         },
     )
 
-    # create some datasets
-    await DataRoom.create_dataset(name='Test Dataset', slug='test')
-    await DataRoom.update_image(
-        image_id=image_logo.id,
-        datasets=['test/1'],
-    )
+    # Save vector before re-fetch: the default get() excludes it for performance (s3vector avoidance).
+    # The vector doesn't change in this test so we can restore it after re-fetching the full doc.
+    saved_vector = image_logo.coca_embedding_vector
 
     # re-fetch image
     image_logo = await sync_to_async(OSImage.objects.get)(image_logo.id)
+    image_logo.coca_embedding_vector = saved_vector
+
+    # `datasets` is derived from dataset membership and not writable on the image,
+    # so set it directly here to exercise serialization.
+    image_logo.datasets = OSImageDatasets(['test/1'])
 
     # serialize to ES document
     es_doc = await sync_to_async(image_logo.to_doc)()
@@ -251,6 +255,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
             "test_related_image": "test-logo",
         },
         "datasets": ["test/1"],
+        "memberships": [],
     }
 
     # serialize to json
@@ -303,6 +308,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
             "test_related_image": "test-logo",
         },
         "datasets": ["test/1"],
+        "memberships": [],
     }
 
     # test specifying doc fields

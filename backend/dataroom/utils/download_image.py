@@ -7,7 +7,7 @@ from django.core.files.base import ContentFile
 
 def download_image_from_url(image_url):
     try:
-        response = httpx.get(image_url)
+        response = httpx.get(image_url, follow_redirects=True)
         response.raise_for_status()
     except httpx.HTTPError as e:
         raise e

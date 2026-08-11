@@ -29,7 +29,16 @@ class QueueSerializer(serializers.Serializer):
 class AttributeFieldSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributesField
-        fields = ['name', 'field_type', 'string_format', 'is_enabled', 'is_indexed', 'image_count']
+        fields = [
+            'name',
+            'description',
+            'field_type',
+            'string_format',
+            'is_enabled',
+            'is_indexed',
+            'image_count',
+            'enum_choices',
+        ]
 
 
 class LatentTypeSerializer(serializers.ModelSerializer):

@@ -1,11 +1,20 @@
 import datetime
+import logging
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from backend.common.base_model import BaseModel
 from backend.dataroom.choices import DuplicateState, StatsType
 from backend.dataroom.models.tag import Tag
+
+logger = logging.getLogger(__name__)
+
+# Tag rows younger than this are exempt from stale-tag cleanup: image ingestion creates Tag
+# rows up front, so a tag ingested after the aggregation snapshot must not be deleted just
+# because that snapshot doesn't include it yet.
+TAG_CLEANUP_GRACE = datetime.timedelta(minutes=10)
 
 
 class StatsManager(models.Manager):
@@ -94,7 +103,6 @@ class StatsManager(models.Manager):
         self.update_stats_images_missing_tags()
         self.update_stats_attributes()
         self.update_stats_latents()
-        self.update_stats_datasets()
 
     def update_queue_stats(self):
         self.update_stats_images_missing_thumbnail()
@@ -186,17 +194,38 @@ class StatsManager(models.Manager):
     def update_stats_image_tags(self):
         from backend.dataroom.models.os_image import OSImage
 
-        # image tags
-        image_tags = OSImage.objects.counts_by_field('tags', number=10000)
-        existing_tags = []
-        for tag_name, count in image_tags.items():
-            if tag_name:
-                existing_tags.append(tag_name)
-                Tag.objects.update_or_create(name=tag_name, defaults={'image_count': count})
-        # zero out old tags
-        Tag.objects.exclude(name__in=existing_tags).update(image_count=0)
-        # delete old tags
-        Tag.objects.filter(image_count=0).delete()
+        # image tags — exhaustive on purpose: the tags filter validates against the Tag table
+        # (400 on unknown tags) and the UI offers the full tag catalog, so the table must
+        # contain EVERY tag present in OpenSearch, not just the top-N most frequent ones.
+        image_tags, truncated = OSImage.objects.counts_by_field_exhaustive('tags')
+        image_tags.pop('', None)
+
+        if image_tags:
+            Tag.objects.bulk_create(
+                [Tag(name=tag_name, image_count=count) for tag_name, count in image_tags.items()],
+                update_conflicts=True,
+                unique_fields=['name'],
+                update_fields=['image_count', 'date_updated'],
+                batch_size=1000,
+            )
+
+        if truncated:
+            # The value universe is incomplete — deleting tags missing from it would break
+            # filtering on every tag beyond the cap, so skip cleanup entirely.
+            logger.warning(
+                'update_stats_image_tags: tag counts truncated at %d values; skipping stale-tag cleanup',
+                len(image_tags),
+            )
+            return
+
+        # delete tags that no longer exist on any image (with a grace period for rows
+        # created after the aggregation snapshot)
+        stale_tags = set(Tag.objects.values_list('name', flat=True)) - set(image_tags)
+        if stale_tags:
+            Tag.objects.filter(
+                name__in=stale_tags,
+                date_created__lt=timezone.now() - TAG_CLEANUP_GRACE,
+            ).delete()
 
     def update_stats_images_missing_tags(self):
         from backend.dataroom.models.os_image import OSImage
@@ -325,16 +354,6 @@ class StatsManager(models.Manager):
         # zero out all other latents
         latent_names = [latent.latent_type for latent in latents.latents.values()]
         LatentType.objects.exclude(name__in=latent_names).update(image_count=0, is_mapped=False)
-
-    def update_stats_datasets(self):
-        from backend.dataroom.models.dataset import Dataset
-        from backend.dataroom.models.os_image import OSImage
-
-        # image datasets
-        for dataset in Dataset.objects.all():
-            count = OSImage.objects.search().filter("terms", datasets=[dataset.slug_version]).count()
-            dataset.image_count = count
-            dataset.save(update_fields=['image_count'])
 
 
 class Stats(BaseModel):

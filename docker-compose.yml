@@ -1,9 +1,8 @@
-version: "3"
-
 volumes:
   dataroom_postgres_data: {}
   redis_data: {}
   opensearch_data: {}
+  minio_data: {}
 
 services:
   dataroom_postgres:
@@ -17,6 +16,17 @@ services:
     volumes:
       - dataroom_postgres_data:/var/lib/postgresql/data:Z
       - ./compose/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    ports:
+      - "5432:5432"
+  dataroom_vite:
+    image: node:22.14-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./:/app
+      - /app/node_modules  # Anonymous volume to avoid overwriting node_modules
+    ports:
+      - "5173:5173"
 
   dataroom_django:
     build:
@@ -33,10 +43,30 @@ services:
     depends_on:
       - dataroom_postgres
       - opensearch
+      - minio-init
+      - dataroom_vite
     volumes:
       - ./:/app
     ports:
       - "8000:8000"
+
+  dataroom_tasks:
+    # Local equivalent of the prod `backend-tasks` ECS service: runs the task
+    # runner (group OS-denorm sync, deletions, thumbnails, ...). Kept to a
+    # single Dask worker so it's light enough for a dev machine.
+    image: dataroom_django
+    command: python -m backend.task_runner.run --settings local --workers 1 --threads 2
+    env_file:
+      - ./.env
+    environment:
+      - DD_AGENT_HOST=dataroom_dogstatsd
+    depends_on:
+      - dataroom_django
+      - dataroom_postgres
+      - opensearch
+      - minio-init
+    volumes:
+      - ./:/app
 
   dataroom_dogstatsd:
     image: datadog/agent
@@ -58,7 +88,7 @@ services:
       - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
 
   opensearch:
-    image: opensearchproject/opensearch:2.13.0
+    image: opensearchproject/opensearch:3.3.0
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true
@@ -69,3 +99,33 @@ services:
     ports:
       - "9200:9200"
     restart: always
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing myminio/dataroom-local;
+      mc anonymous set download myminio/dataroom-local;
+      exit 0;
+      "

@@ -1,33 +1,38 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import {
-  imagesRandomRetrieve,
-  imagesRetrieve,
-  useImagesList,
-  useImagesRandomRetrieve,
-  useImagesSimilarList,
-  useImagesSimilarToFileCreate,
-  useImagesSimilarToTextCreate,
-  useImagesSimilarToVectorCreate,
-} from "../api/client";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { useImagesList, useImagesCountRetrieve, useQueriesRetrieve } from "../api/client";
+import { URLS } from "../urls";
 import { OSImage, PaginatedOSImage } from "../api/client.schemas";
 import { axiosInstance } from "../api/axios";
 import toast from "react-hot-toast";
+import {
+  genChipId,
+  createEmptyLane,
+  lanesToApiParams,
+  lanesToAllFilterParamKeys,
+  parseLanesFromUrl,
+  isAdvancedFilter,
+} from "./filterUtils";
+import { useImageSelection } from "./useImageSelection";
+import { useSimilaritySearch } from "./useSimilaritySearch";
+import { extractApiError } from "../api/errors";
 
 export enum ImageListMode {
   BROWSE = "browse",
-  RANDOM = "random",
   SIMILAR = "similar",
 }
 
-export interface ImageListFilters {
-  sources: string[];
-  tags: string[];
-  aspect_ratio_fraction: string | null;
-  has_attributes: string[];
-  has_latents: string[];
-  duplicate_state: string | null;
-  datasets: string[];
+export interface FilterChip {
+  id: string;
+  field: string; // "source", "tag", "width", "attr:color", etc.
+  operator: string; // "eq", "ne", "gt", "gte", "lt", "lte", "match", "prefix"
+  value: string;
+}
+
+export interface FilterLane {
+  id: string;
+  chips: FilterChip[];
+  negated: boolean;
 }
 
 interface ImageListDataContextType {
@@ -42,7 +47,6 @@ interface ImageListDataContextType {
   // mode
   mode: ImageListMode;
   setModeBrowse: () => void;
-  setModeRandom: () => void;
   // similarity search
   setModeSimilarImage: (imageId: string) => void;
   similarImage: OSImage | null;
@@ -56,16 +60,46 @@ interface ImageListDataContextType {
   isSelecting: boolean;
   setIsSelecting: (isSelecting: boolean) => void;
   selectedImages: string[];
+  selectedImageObjects: OSImage[];
   toggleSelectedImage: (imageId: string, isMultiSelect: boolean) => void;
+  addSelectedImages: (imageIds: string[]) => void;
   clearSelectedImages: () => void;
-  // random
-  randomPrefixLength: number;
-  setRandomPrefixLength: (prefixLength: number) => void;
-  randomNumPrefixes: number;
-  setRandomNumPrefixes: (numPrefixes: number) => void;
+  // grid
+  gridColumns: number;
+  setGridColumns: (columns: number) => void;
   // filters
-  filters: ImageListFilters;
-  setFilters: (filters: ImageListFilters) => void;
+  chips: FilterChip[];
+  addChip: (chip: Omit<FilterChip, "id">) => void;
+  removeChip: (id: string) => void;
+  removeChipDraft: (id: string) => void;
+  clearChips: () => void;
+  // lanes
+  lanes: FilterLane[];
+  activeLaneId: string;
+  setActiveLane: (id: string) => void;
+  addLane: () => void;
+  removeLane: (id: string) => void;
+  toggleLaneNegated: (id: string) => void;
+  clearAllLanes: () => void;
+  isAdvancedFilter: boolean;
+  // commit
+  commitFilters: () => void;
+  committedFilterParams: Record<string, string>;
+  // saved query the current filters are bound to (tracked in ?query=<slug>, for overwrite-on-save)
+  activeQuerySlug: string | null;
+  // collapsed = compact pill (filters live in committed lanes for fetching, but hidden from the bar
+  // and URL which shows only ?query=<slug>); exploded = filters surfaced as editable chips + params.
+  queryCollapsed: boolean;
+  bindQuery: (slug: string) => void;
+  clearActiveQuery: () => void;
+  collapseToQuery: (slug: string, filters: Record<string, unknown>) => void;
+  explodeQuery: () => void;
+  collapseQuery: () => void;
+  expandQueryToChips: (slug: string, filters: Record<string, unknown>) => void;
+  // count
+  totalCount: number | null;
+  // refetch
+  refetchImages: () => void;
 }
 
 const ImageListDataContext = createContext<ImageListDataContextType | undefined>(undefined);
@@ -79,101 +113,16 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
   const [searchParams, setSearchParams] = useSearchParams();
 
   // -------------------- Get initial URL state --------------------
-  const initialRandomPrefixLength = searchParams.get("prefix_length") ? Number(searchParams.get("prefix_length")) : 5;
-  const initialRandomNumPrefixes = searchParams.get("num_prefixes") ? Number(searchParams.get("num_prefixes")) : 100;
   const initialSimilarImageId = searchParams.get("similar") || null;
   const initialSimilarText = searchParams.get("similarText") || null;
 
   // -------------------- Mode state --------------------
-  const [randomPrefixLength, setRandomPrefixLength] = useState(initialRandomPrefixLength);
-  const [randomNumPrefixes, setRandomNumPrefixes] = useState(initialRandomNumPrefixes);
-
   const [mode, setMode] = useState<ImageListMode>(() => {
     if (searchParams.get("similar") || searchParams.get("similarText")) {
       return ImageListMode.SIMILAR;
-    } else if (searchParams.get("random") == "true") {
-      return ImageListMode.RANDOM;
-    } else {
-      return ImageListMode.BROWSE;
     }
+    return ImageListMode.BROWSE;
   });
-
-  const setModeBrowse = () => {
-    setMode(ImageListMode.BROWSE);
-    setSimilarImageId(null);
-    setSimilarText(null);
-    setSimilarFile(null);
-    setSimilarVector(null);
-  };
-
-  const setModeRandom = () => {
-    setMode(ImageListMode.RANDOM);
-  };
-
-  // -------------------- Similar image --------------------
-  const [similarImageId, setSimilarImageId] = useState<string | null>(initialSimilarImageId);
-  const [similarImage, setSimilarImage] = useState<OSImage | null>(null);
-
-  const setModeSimilarImage = (imageId: string) => {
-    setMode(ImageListMode.SIMILAR);
-    setSimilarText(null);
-    setSimilarFile(null);
-    setSimilarVector(null);
-    setSimilarImageId(imageId);
-  };
-
-  useEffect(() => {
-    if (similarImageId) {
-      imagesRetrieve(similarImageId, {
-        include_fields: LIST_INCLUDE_FIELDS,
-      })
-        .then(response => {
-          setSimilarImage(response);
-        })
-        .catch(e => {
-          toast.error("Error loading similar image");
-          console.error(e);
-        });
-    } else {
-      setSimilarImage(null);
-    }
-  }, [similarImageId]);
-
-  // -------------------- Similar text --------------------
-  const [similarText, setSimilarText] = useState<string | null>(initialSimilarText);
-
-  const setModeSimilarText = (text: string) => {
-    setMode(ImageListMode.SIMILAR);
-    setSimilarImageId(null);
-    setSimilarImage(null);
-    setSimilarFile(null);
-    setSimilarVector(null);
-    setSimilarText(text);
-  };
-
-  // -------------------- Similar file --------------------
-  const [similarFile, setSimilarFile] = useState<File | null>(null);
-
-  const setModeSimilarFile = (file: File) => {
-    setMode(ImageListMode.SIMILAR);
-    setSimilarImageId(null);
-    setSimilarImage(null);
-    setSimilarText(null);
-    setSimilarVector(null);
-    setSimilarFile(file);
-  };
-
-  // -------------------- Similar vector --------------------
-  const [similarVector, setSimilarVector] = useState<string | null>(null);
-
-  const setModeSimilarVector = (vector: string) => {
-    setMode(ImageListMode.SIMILAR);
-    setSimilarImageId(null);
-    setSimilarImage(null);
-    setSimilarText(null);
-    setSimilarFile(null);
-    setSimilarVector(vector);
-  };
 
   // -------------------- Image list state --------------------
   const [images, setImages] = useState<OSImage[]>([]);
@@ -181,343 +130,329 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
   const [isLoadingNextPageError, setIsLoadingNextPageError] = useState(false);
 
-  // -------------------- Keep URL state in sync --------------------
-
-  // update the URL when the mode changes
-  useEffect(() => {
-    const newParams = new URLSearchParams(searchParams);
-
-    // random mode
-    if (mode === ImageListMode.RANDOM) {
-      setImagesNextUrl(null);
-      newParams.set("random", "true");
-      newParams.set("prefix_length", randomPrefixLength.toString());
-      newParams.set("num_prefixes", randomNumPrefixes.toString());
-    } else {
-      setImagesNextUrl(null);
-      newParams.delete("random");
-      newParams.delete("prefix_length");
-      newParams.delete("num_prefixes");
-    }
-
-    // similar mode
-    if (mode === ImageListMode.SIMILAR && similarImageId) {
-      setImagesNextUrl(null); // no pagination
-      newParams.set("similar", similarImageId);
-    } else {
-      newParams.delete("similar");
-    }
-    if (mode === ImageListMode.SIMILAR && similarText) {
-      setImagesNextUrl(null); // no pagination
-      newParams.set("similarText", similarText);
-    } else {
-      newParams.delete("similarText");
-    }
-    if (mode === ImageListMode.SIMILAR && similarFile) {
-      setImagesNextUrl(null); // no pagination
-      newParams.set("similarFile", "true");
-    } else {
-      newParams.delete("similarFile");
-    }
-    if (mode === ImageListMode.SIMILAR && similarVector) {
-      setImagesNextUrl(null); // no pagination
-      newParams.set("similarVector", "true");
-    } else {
-      newParams.delete("similarVector");
-    }
-
-    // update the search params
-    setSearchParams(newParams);
-  }, [mode, randomPrefixLength, randomNumPrefixes, similarImageId, similarText, similarFile, similarVector]);
-
-  // -------------------- Selecting images --------------------
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
-  const [lastSelectedImage, setLastSelectedImage] = useState(null as string | null);
-  const [lastWasUnselected, setLastWasUnselected] = useState(false);
-
-  const toggleSelectedImage = (imageId: string, isMultiSelect: boolean) => {
-    const isAlreadySelected = selectedImages.includes(imageId);
-
-    if (isMultiSelect && lastSelectedImage) {
-      const lastSelectedIndex = images.findIndex(image => image.id === lastSelectedImage);
-      const currentSelectedIndex = images.findIndex(image => image.id === imageId);
-      const start = Math.min(lastSelectedIndex, currentSelectedIndex);
-      const end = Math.max(lastSelectedIndex, currentSelectedIndex);
-      const selectedIds = images.slice(start, end + 1).map(image => image.id);
-      if (lastWasUnselected) {
-        setSelectedImages(selectedImages.filter(id => !selectedIds.includes(id)));
-      } else {
-        setSelectedImages(
-          selectedImages.concat(selectedIds).filter((value, index, self) => self.indexOf(value) === index)
-        );
-      }
-    } else {
-      if (isAlreadySelected) {
-        setSelectedImages(selectedImages.filter(id => id !== imageId));
-      } else {
-        setSelectedImages([...selectedImages, imageId]);
-      }
-    }
-    setLastSelectedImage(imageId);
-    setLastWasUnselected(isAlreadySelected);
-  };
-
-  const clearSelectedImages = () => {
-    setSelectedImages([]);
-  };
-
-  // -------------------- Filters --------------------
-  const [filters, setFilters] = useState<ImageListFilters>(() => {
-    return {
-      sources: searchParams.get("sources")?.split(",") || [],
-      tags: searchParams.get("tags")?.split(",") || [],
-      aspect_ratio_fraction: searchParams.get("aspect_ratio_fraction") || null,
-      has_attributes: searchParams.get("has_attributes")?.split(",") || [],
-      has_latents: searchParams.get("has_latents")?.split(",") || [],
-      duplicate_state: searchParams.get("duplicate_state") || null,
-      datasets: searchParams.get("datasets")?.split(",") || [],
-    };
+  // -------------------- Similarity search (extracted hook) --------------------
+  const similarity = useSimilaritySearch({
+    mode,
+    setMode,
+    onImagesLoaded: (imgs, nextUrl) => {
+      setImages(imgs);
+      setImagesNextUrl(nextUrl);
+    },
+    initialSimilarImageId,
+    initialSimilarText,
   });
 
-  const getFiltersParams = (filters: ImageListFilters): { [key: string]: string } => {
-    let params: { [key: string]: string } = {};
-    for (const [key, value] of Object.entries(filters)) {
-      if (value) {
-        if (Array.isArray(value)) {
-          if (value.length > 0) {
-            params[key] = value.join(",");
-          } else {
-            // skip it
-          }
-        } else {
-          params[key] = value;
-        }
-      }
-    }
-    return params;
-  };
+  // -------------------- Selection (extracted hook) --------------------
+  const selection = useImageSelection(images);
 
-  // keep URL in sync with filters
-  useEffect(() => {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.delete("sources");
-    newParams.delete("tags");
-    newParams.delete("aspect_ratio_fraction");
-    newParams.delete("has_attributes");
-    newParams.delete("has_latents");
-    newParams.delete("duplicate_state");
-    newParams.delete("datasets");
-    const filtersParams = getFiltersParams(filters);
-    for (const [key, value] of Object.entries(filtersParams)) {
-      newParams.set(key, value);
+  // -------------------- Grid size --------------------
+  // Clamp the zoom so tiles can't blow up to absurd sizes.
+  const MIN_GRID_COLUMNS = 3;
+  const MAX_GRID_COLUMNS = 12;
+  const clampCols = (n: number) =>
+    Math.min(MAX_GRID_COLUMNS, Math.max(MIN_GRID_COLUMNS, Number.isFinite(n) ? n : MIN_GRID_COLUMNS));
+
+  const [gridColumns, setGridColumns] = useState<number>(() => {
+    const saved = localStorage.getItem("gridColumns");
+    if (saved) return clampCols(Number(saved));
+    return window.innerWidth < 640 ? 3 : 6;
+  });
+
+  const handleSetGridColumns = useCallback((cols: number) => {
+    const next = clampCols(cols);
+    setGridColumns(next);
+    localStorage.setItem("gridColumns", String(next));
+  }, []);
+
+  // -------------------- Filters (lane model) --------------------
+  // `lanes` is the live/draft state (edited during multi-select without triggering queries).
+  // `committedLanes` is what the browse query and URL actually use.
+  // Direct user actions (remove chip, clear, etc.) commit immediately.
+  // addChip (used by multi-select toggle) only updates draft — committed on explicit apply.
+  // Parse the URL once on mount; subsequent URL writes are driven by state, not re-parsed here.
+  const initialLanes = useMemo(() => parseLanesFromUrl(searchParams), []);
+  const [lanes, setLanes] = useState<FilterLane[]>(() => initialLanes);
+  const [committedLanes, setCommittedLanes] = useState<FilterLane[]>(() => initialLanes);
+  const [activeLaneId, setActiveLaneId] = useState<string>(() => initialLanes[0]?.id ?? createEmptyLane().id);
+
+  // Derived: active lane's chips for backward compat
+  const activeLane = useMemo(() => lanes.find(l => l.id === activeLaneId) ?? lanes[0], [lanes, activeLaneId]);
+  const chips = activeLane?.chips ?? [];
+  const advancedFilter = useMemo(() => isAdvancedFilter(lanes), [lanes]);
+
+  // Browse query + URL use committed params; facets use live params via chips
+  const committedFilterParams = useMemo(() => lanesToApiParams(committedLanes), [committedLanes]);
+
+  // Binding marker for the saved query the filters came from, so Save can overwrite it. Not a
+  // server-side filter (the image list always filters by the chips). Kept in state so the
+  // URL-sync effect is the sole writer of ?query=, mirrored there for shareable URLs.
+  const [activeQuerySlug, setActiveQuerySlug] = useState<string | null>(() => searchParams.get("query"));
+
+  // Collapsed = compact pill: the query's filters live in committed lanes (so the list fetches),
+  // but they're hidden from the bar and the URL shows only ?query=<slug>. Start collapsed when the
+  // URL has ?query= but no individual filter params (i.e. a shared collapsed link).
+  const [queryCollapsed, setQueryCollapsed] = useState<boolean>(
+    () => !!searchParams.get("query") && !initialLanes.some(l => l.chips.length > 0)
+  );
+
+  // Turn a saved query's stored filters into editable lanes.
+  const filtersToLanes = useCallback((filters: Record<string, unknown>) => {
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value === null || value === undefined) continue;
+      if (Array.isArray(value)) sp.set(key, value.join(","));
+      else if (typeof value === "object") sp.set(key, JSON.stringify(value));
+      else sp.set(key, String(value));
     }
-    setSearchParams(newParams);
-  }, [filters]);
+    return parseLanesFromUrl(sp);
+  }, []);
+
+  const loadLanes = useCallback((newLanes: FilterLane[]) => {
+    setLanes(newLanes);
+    setCommittedLanes(newLanes);
+    setActiveLaneId(newLanes[0]?.id ?? createEmptyLane().id);
+  }, []);
+
+  // Bind the current filters to a saved query (e.g. after saving) without touching the chips.
+  const bindQuery = useCallback((slug: string) => setActiveQuerySlug(slug), []);
+
+  // Detach from the bound query and clear its filters (the ✕ on the collapsed pill).
+  const clearActiveQuery = useCallback(() => {
+    setActiveQuerySlug(null);
+    setQueryCollapsed(false);
+    loadLanes([createEmptyLane()]);
+  }, [loadLanes]);
+
+  // Select a saved query: load its filters into committed lanes (so the list fetches) and bind to
+  // it, but stay collapsed so the bar shows only a pill and the URL only ?query=<slug>.
+  const collapseToQuery = useCallback(
+    (slug: string, filters: Record<string, unknown>) => {
+      setActiveQuerySlug(slug);
+      loadLanes(filtersToLanes(filters));
+      setQueryCollapsed(true);
+    },
+    [filtersToLanes, loadLanes]
+  );
+
+  // Explode the collapsed query into editable chips: lanes are already loaded, so surfacing them to
+  // the bar + URL is just a matter of flipping the flag (the URL-sync effect writes the params).
+  const explodeQuery = useCallback(() => setQueryCollapsed(false), []);
+
+  // Fold an exploded query back to its pill, keeping the current (possibly edited) chips. The
+  // URL-sync effect then strips the individual params, leaving only ?query=<slug>.
+  const collapseQuery = useCallback(() => setQueryCollapsed(true), []);
+
+  // Load a saved query's stored filters as editable chips and bind to it (so Save can overwrite it).
+  // Replaces the current filters. The URL-sync effect writes the chip params and ?query=<slug>.
+  const expandQueryToChips = useCallback(
+    (slug: string, filters: Record<string, unknown>) => {
+      setActiveQuerySlug(slug);
+      loadLanes(filtersToLanes(filters));
+      setQueryCollapsed(false);
+    },
+    [filtersToLanes, loadLanes]
+  );
+
+  // On a collapsed load the URL carries only ?query=<slug>, so committed lanes are empty and the
+  // list wouldn't filter. Resolve the saved query and populate the lanes once.
+  const { data: resolvedQuery } = useQueriesRetrieve(activeQuerySlug ?? "", undefined, {
+    query: { enabled: queryCollapsed && !!activeQuerySlug },
+  });
+  const resolvedSlugRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!queryCollapsed || !activeQuerySlug || !resolvedQuery) return;
+    if (resolvedSlugRef.current === activeQuerySlug) return;
+    if (committedLanes.some(l => l.chips.length > 0)) {
+      resolvedSlugRef.current = activeQuerySlug;
+      return;
+    }
+    loadLanes(filtersToLanes((resolvedQuery.filters ?? {}) as Record<string, unknown>));
+    resolvedSlugRef.current = activeQuerySlug;
+  }, [queryCollapsed, activeQuerySlug, resolvedQuery, committedLanes, filtersToLanes, loadLanes]);
+
+  // addChip: draft only (no commit — applied on explicit apply/enter/esc)
+  const addChip = useCallback(
+    (chip: Omit<FilterChip, "id">) => {
+      if (mode === ImageListMode.SIMILAR) similarity.setModeBrowse();
+      const newChip = { ...chip, id: genChipId() };
+      setLanes(prev => prev.map(l => (l.id === activeLaneId ? { ...l, chips: [...l.chips, newChip] } : l)));
+    },
+    [mode, similarity, activeLaneId]
+  );
+
+  // removeChip: commits immediately (direct user action like clicking X on a chip)
+  const removeChip = useCallback((id: string) => {
+    const updater = (prev: FilterLane[]) => prev.map(l => ({ ...l, chips: l.chips.filter(c => c.id !== id) }));
+    setLanes(updater);
+    setCommittedLanes(updater);
+  }, []);
+
+  // removeChipDraft: draft only (used by multi-select toggle — committed on apply)
+  const removeChipDraft = useCallback((id: string) => {
+    setLanes(prev => prev.map(l => ({ ...l, chips: l.chips.filter(c => c.id !== id) })));
+  }, []);
+
+  const clearChips = useCallback(() => {
+    const updater = (prev: FilterLane[]) => prev.map(l => (l.id === activeLaneId ? { ...l, chips: [] } : l));
+    setLanes(updater);
+    setCommittedLanes(updater);
+  }, [activeLaneId]);
+
+  // commitFilters: sync draft → committed (called by hook on apply/enter/esc)
+  const commitFilters = useCallback(() => {
+    setLanes(currentLanes => {
+      setCommittedLanes([...currentLanes]);
+      return currentLanes;
+    });
+  }, []);
+
+  const addLane = useCallback(() => {
+    const newLane = createEmptyLane();
+    setLanes(prev => [...prev, newLane]);
+    setActiveLaneId(newLane.id);
+  }, []);
+
+  const removeLane = useCallback(
+    (id: string) => {
+      setLanes(prev => {
+        const next = prev.filter(l => l.id !== id);
+        if (next.length === 0) {
+          const fresh = createEmptyLane();
+          setActiveLaneId(fresh.id);
+          setCommittedLanes([fresh]);
+          return [fresh];
+        }
+        if (activeLaneId === id) setActiveLaneId(next[0].id);
+        setCommittedLanes(next);
+        return next;
+      });
+    },
+    [activeLaneId]
+  );
+
+  const toggleLaneNegated = useCallback((id: string) => {
+    const updater = (prev: FilterLane[]) => prev.map(l => (l.id === id ? { ...l, negated: !l.negated } : l));
+    setLanes(updater);
+    setCommittedLanes(updater);
+  }, []);
+
+  const clearAllLanes = useCallback(() => {
+    const fresh = createEmptyLane();
+    setLanes([fresh]);
+    setCommittedLanes([fresh]);
+    setActiveLaneId(fresh.id);
+  }, []);
+
+  // Single writer for the whole URL query string (filters, ?query=, and similarity). One effect that
+  // owns every param — built from the updater's `prev` (the latest params, never a stale closure) —
+  // means the two writers can't clobber each other, which was resetting filters (esp. on Safari).
+  useEffect(() => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      // Remove only filter-related params (not similarity/mode params)
+      for (const key of lanesToAllFilterParamKeys(committedLanes)) newParams.delete(key);
+      // Set current filter params — but while collapsed the URL shows only ?query=<slug>, so the
+      // individual params stay stripped (the filters live in committed lanes for fetching only).
+      if (!queryCollapsed) {
+        for (const [key, value] of Object.entries(committedFilterParams)) newParams.set(key, value);
+      }
+      // Mirror the bound-query marker (this effect is the sole writer of ?query=)
+      if (activeQuerySlug) newParams.set("query", activeQuerySlug);
+      else newParams.delete("query");
+      // Similarity params: present only in similar mode, cleared otherwise
+      const sim = mode === ImageListMode.SIMILAR;
+      if (sim && similarity.similarImageId) newParams.set("similar", similarity.similarImageId);
+      else newParams.delete("similar");
+      if (sim && similarity.similarText) newParams.set("similarText", similarity.similarText);
+      else newParams.delete("similarText");
+      if (sim && similarity.similarFile) newParams.set("similarFile", "true");
+      else newParams.delete("similarFile");
+      if (sim && similarity.similarVector) newParams.set("similarVector", "true");
+      else newParams.delete("similarVector");
+      return newParams;
+    });
+  }, [
+    committedFilterParams,
+    activeQuerySlug,
+    queryCollapsed,
+    mode,
+    similarity.similarImageId,
+    similarity.similarText,
+    similarity.similarFile,
+    similarity.similarVector,
+  ]);
 
   // -------------------- Fetching image list --------------------
 
   useEffect(() => {
-    // Reset images when mode changes
     setImages([]);
     setImagesNextUrl(null);
-  }, [mode, randomPrefixLength, randomNumPrefixes, similarImageId, similarText, similarFile, similarVector]);
+  }, [mode, similarity.similarImageId, similarity.similarText, similarity.similarFile, similarity.similarVector]);
 
-  // Browse mode query
+  // This provider is mounted by MainLayout, which wraps every page (images,
+  // datasets, groups, group-types). The image list/count are only ever rendered
+  // on the image LIST route, so gate the network queries on that — otherwise the
+  // global, unfiltered list + count fire needlessly on group/dataset pages.
+  const { pathname } = useLocation();
+  const onImageListRoute = pathname === URLS.IMAGE_LIST();
+
+  // Browse mode query (uses committed params so it doesn't fire on every multi-select tick)
   const browseQuery = useImagesList(
     {
-      ...getFiltersParams(filters),
+      ...committedFilterParams,
       include_fields: LIST_INCLUDE_FIELDS,
       page_size: PAGE_SIZE,
     },
     {
       query: {
-        enabled: mode === ImageListMode.BROWSE,
+        enabled: onImageListRoute && mode === ImageListMode.BROWSE,
       },
     }
   );
 
-  // Random mode query
-  const randomQuery = useImagesRandomRetrieve(
-    {
-      ...getFiltersParams(filters),
-      include_fields: LIST_INCLUDE_FIELDS,
-      page_size: PAGE_SIZE,
-      prefix_length: randomPrefixLength,
-      num_prefixes: randomNumPrefixes,
-    },
-    {
-      query: {
-        enabled: mode === ImageListMode.RANDOM,
-      },
-    }
+  // Count query (same committed filters)
+  const countQuery = useImagesCountRetrieve(
+    { ...committedFilterParams },
+    { query: { enabled: onImageListRoute && mode === ImageListMode.BROWSE } }
   );
+  const totalCount = countQuery.data?.count ?? null;
 
-  // Similar image query
-  const similarImageQuery = useImagesSimilarList(
-    similarImageId || "",
-    {
-      include_fields: LIST_INCLUDE_FIELDS,
-      number: PAGE_SIZE,
-    },
-    {
-      query: {
-        enabled: mode === ImageListMode.SIMILAR && !!similarImageId,
-      },
-    }
-  );
-
-  // Similar text mutation
-  const similarTextMutation = useImagesSimilarToTextCreate();
-
-  useEffect(() => {
-    if (mode === ImageListMode.SIMILAR && similarText) {
-      similarTextMutation.mutate({
-        data: {
-          text: similarText,
-          number: PAGE_SIZE,
-        },
-        params: {
-          include_fields: LIST_INCLUDE_FIELDS,
-        },
-      });
-    }
-  }, [mode, similarText]);
-
-  // Similar file mutation
-  const similarFileMutation = useImagesSimilarToFileCreate();
-
-  useEffect(() => {
-    if (mode === ImageListMode.SIMILAR && similarFile) {
-      similarFileMutation.mutate({
-        data: {
-          image: similarFile,
-          json: JSON.stringify({ number: PAGE_SIZE }),
-        },
-        params: {
-          include_fields: LIST_INCLUDE_FIELDS,
-        },
-      });
-    }
-  }, [mode, similarFile]);
-
-  // Similar vector mutation
-  const similarVectorMutation = useImagesSimilarToVectorCreate();
-
-  useEffect(() => {
-    if (mode === ImageListMode.SIMILAR && similarVector) {
-      similarVectorMutation.mutate({
-        data: {
-          vector: similarVector,
-          number: PAGE_SIZE,
-        },
-        params: {
-          include_fields: LIST_INCLUDE_FIELDS,
-        },
-      });
-    }
-  }, [mode, similarVector]);
-
-  // Set up data when queries complete
+  // Set up data when browse query completes
   useEffect(() => {
     if (mode === ImageListMode.BROWSE && browseQuery.data) {
       setImages(browseQuery.data.results);
       setImagesNextUrl(browseQuery.data.next);
-    } else if (mode === ImageListMode.RANDOM && randomQuery.data) {
-      setImages(randomQuery.data.results);
-      setImagesNextUrl(randomQuery.data.next);
-    } else if (mode === ImageListMode.SIMILAR && similarImageId && similarImageQuery.data) {
-      setImages(similarImageQuery.data || []);
-      setImagesNextUrl(null);
-    } else if (mode === ImageListMode.SIMILAR && similarText && similarTextMutation.data) {
-      setImages(similarTextMutation.data || []);
-      setImagesNextUrl(null);
-    } else if (mode === ImageListMode.SIMILAR && similarFile && similarFileMutation.data) {
-      setImages(similarFileMutation.data || []);
-      setImagesNextUrl(null);
-    } else if (mode === ImageListMode.SIMILAR && similarVector && similarVectorMutation.data) {
-      setImages(similarVectorMutation.data || []);
-      setImagesNextUrl(null);
     }
-  }, [
-    browseQuery.data,
-    randomQuery.data,
-    similarImageQuery.data,
-    similarTextMutation.data,
-    similarFileMutation.data,
-    similarVectorMutation.data,
-    mode,
-    similarImageId,
-    similarText,
-    similarFile,
-    similarVector,
-  ]);
+  }, [browseQuery.data, mode]);
 
-  // Handle errors
+  // Handle browse errors — keep a generic lead-in but append the backend's specific reason
+  // (e.g. an invalid tag/group filter) when available, so a 400 is actionable.
   useEffect(() => {
     if (browseQuery.error && mode === ImageListMode.BROWSE) {
-      toast.error("Error loading images");
+      const detail = extractApiError(browseQuery.error, "");
+      toast.error(
+        detail ? (
+          <div>
+            <div className="font-medium">Error loading images</div>
+            <div className="text-sm opacity-80">{detail}</div>
+          </div>
+        ) : (
+          "Error loading images"
+        )
+      );
       console.error(browseQuery.error);
     }
-    if (randomQuery.error && mode === ImageListMode.RANDOM) {
-      toast.error("Error loading random images");
-      console.error(randomQuery.error);
-    }
-    if (similarImageQuery.error && mode === ImageListMode.SIMILAR && similarImageId) {
-      toast.error("Error loading similar images");
-      console.error(similarImageQuery.error);
-    }
-    if (similarTextMutation.error && mode === ImageListMode.SIMILAR && similarText) {
-      toast.error("Error loading similar to text");
-      console.error(similarTextMutation.error);
-    }
-    if (similarFileMutation.error && mode === ImageListMode.SIMILAR && similarFile) {
-      toast.error("Error loading similar to file");
-      console.error(similarFileMutation.error);
-    }
-    if (similarVectorMutation.error && mode === ImageListMode.SIMILAR && similarVector) {
-      toast.error("Error loading similar to vector");
-      console.error(similarVectorMutation.error);
-    }
-  }, [
-    browseQuery.error,
-    randomQuery.error,
-    similarImageQuery.error,
-    similarTextMutation.error,
-    similarFileMutation.error,
-    similarVectorMutation.error,
-    mode,
-    similarImageId,
-    similarText,
-    similarFile,
-    similarVector,
-  ]);
+  }, [browseQuery.error, mode]);
 
   // Combine loading states
-  const isLoadingImages = !!(
-    (mode === ImageListMode.BROWSE && browseQuery.isLoading) ||
-    (mode === ImageListMode.RANDOM && randomQuery.isLoading) ||
-    (mode === ImageListMode.SIMILAR && similarImageId && similarImageQuery.isLoading) ||
-    (mode === ImageListMode.SIMILAR && similarText && similarTextMutation.isPending) ||
-    (mode === ImageListMode.SIMILAR && similarFile && similarFileMutation.isPending) ||
-    (mode === ImageListMode.SIMILAR && similarVector && similarVectorMutation.isPending)
-  );
+  const isLoadingImages = !!((mode === ImageListMode.BROWSE && browseQuery.isLoading) || similarity.isLoading);
 
   // Combine error states
-  const isLoadingImagesError = !!(
-    (mode === ImageListMode.BROWSE && browseQuery.isError) ||
-    (mode === ImageListMode.RANDOM && randomQuery.isError) ||
-    (mode === ImageListMode.SIMILAR && similarImageId && similarImageQuery.isError) ||
-    (mode === ImageListMode.SIMILAR && similarText && similarTextMutation.isError) ||
-    (mode === ImageListMode.SIMILAR && similarFile && similarFileMutation.isError) ||
-    (mode === ImageListMode.SIMILAR && similarVector && similarVectorMutation.isError)
-  );
+  const isLoadingImagesError = !!((mode === ImageListMode.BROWSE && browseQuery.isError) || similarity.isError);
 
   // next page function
   const loadNextPage = async () => {
     if (mode === ImageListMode.BROWSE) {
-      // ------------ Browse mode ------------
-      // use the next page value
       if (!imagesNextUrl) {
         return;
       }
@@ -540,33 +475,6 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
         .finally(() => {
           setIsLoadingNextPage(false);
         });
-    } else if (mode === ImageListMode.RANDOM) {
-      // ------------ Random mode ------------
-      // hit the same endpoint again
-      setIsLoadingNextPage(true);
-      setIsLoadingNextPageError(false);
-      imagesRandomRetrieve({
-        include_fields: LIST_INCLUDE_FIELDS,
-        page_size: PAGE_SIZE,
-        prefix_length: randomPrefixLength,
-        num_prefixes: randomNumPrefixes,
-      })
-        .then(response => {
-          const { results } = response;
-          setImages([...images, ...results]);
-          setImagesNextUrl(response.next);
-        })
-        .catch(e => {
-          toast.error("Error loading next page of random images");
-          console.error(e);
-          setIsLoadingNextPageError(true);
-        })
-        .finally(() => {
-          setIsLoadingNextPage(false);
-        });
-    } else if (mode === ImageListMode.SIMILAR) {
-      // ------------ Similar mode ------------
-      // pagination for similar images is not supported
     }
   };
 
@@ -584,31 +492,70 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
         isLoadingNextPageError,
         // mode
         mode,
-        setModeBrowse,
-        setModeRandom,
+        setModeBrowse: similarity.setModeBrowse,
         // similarity search
-        setModeSimilarImage,
-        similarImage,
-        setModeSimilarText,
-        similarText,
-        setModeSimilarFile,
-        similarFile,
-        setModeSimilarVector,
-        similarVector,
+        setModeSimilarImage: (imageId: string) => {
+          clearAllLanes();
+          similarity.setModeSimilarImage(imageId);
+        },
+        similarImage: similarity.similarImage,
+        setModeSimilarText: (text: string) => {
+          clearAllLanes();
+          similarity.setModeSimilarText(text);
+        },
+        similarText: similarity.similarText,
+        setModeSimilarFile: (file: File) => {
+          clearAllLanes();
+          similarity.setModeSimilarFile(file);
+        },
+        similarFile: similarity.similarFile,
+        setModeSimilarVector: (vector: string) => {
+          clearAllLanes();
+          similarity.setModeSimilarVector(vector);
+        },
+        similarVector: similarity.similarVector,
         // selecting
-        isSelecting,
-        setIsSelecting,
-        selectedImages,
-        toggleSelectedImage,
-        clearSelectedImages,
-        // random
-        randomPrefixLength,
-        setRandomPrefixLength,
-        randomNumPrefixes,
-        setRandomNumPrefixes,
+        isSelecting: selection.isSelecting,
+        setIsSelecting: selection.setIsSelecting,
+        selectedImages: selection.selectedImages,
+        selectedImageObjects: selection.selectedImageObjects,
+        toggleSelectedImage: selection.toggleSelectedImage,
+        addSelectedImages: selection.addSelectedImages,
+        clearSelectedImages: selection.clearSelectedImages,
+        // grid
+        gridColumns,
+        setGridColumns: handleSetGridColumns,
         // filters
-        filters,
-        setFilters,
+        chips,
+        addChip,
+        removeChip,
+        removeChipDraft,
+        clearChips,
+        // lanes
+        lanes,
+        activeLaneId,
+        setActiveLane: setActiveLaneId,
+        addLane,
+        removeLane,
+        toggleLaneNegated,
+        clearAllLanes,
+        isAdvancedFilter: advancedFilter,
+        // commit
+        commitFilters,
+        committedFilterParams,
+        // saved query
+        activeQuerySlug,
+        queryCollapsed,
+        bindQuery,
+        clearActiveQuery,
+        collapseToQuery,
+        explodeQuery,
+        collapseQuery,
+        expandQueryToChips,
+        // count
+        totalCount,
+        // refetch
+        refetchImages: () => browseQuery.refetch(),
       }}
     >
       {children}

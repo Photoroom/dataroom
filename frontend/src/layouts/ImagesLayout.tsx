@@ -1,17 +1,18 @@
 import { ImageList } from "./images/ImageList";
-import { ImagesSidebarContent } from "./images/ImagesSidebarContent";
+import { ImagesToolbar, ImagesRightActions } from "./images/ImagesToolbar";
 import { MainLayout } from "./MainLayout";
 import { ImagesDrawerContent } from "./images/ImagesDrawerContent";
 import { useImageDrawer } from "../context/ImageDrawerContext";
-import { SidebarActiveNav } from "../context/SidebarContext";
+import { FilterSidebar } from "./images/filter/FilterSidebar";
 
 export function ImagesLayout() {
   return (
     <MainLayout
-      sidebarActiveNav={SidebarActiveNav.IMAGES}
-      sidebarContent={<ImagesSidebarContent />}
+      toolbarContent={<ImagesToolbar />}
+      rightActions={<ImagesRightActions />}
       drawerContent={<ImagesDrawerContent />}
       useDrawer={useImageDrawer}
+      sidebarContent={<FilterSidebar />}
     >
       <ImageList />
     </MainLayout>

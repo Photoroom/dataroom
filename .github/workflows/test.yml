@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - main
+      - dev-deploy
   pull_request:
     branches:
       - main
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Self-hosted runner where one is configured (CI_RUNNER repository
+    # variable), GitHub-hosted otherwise.
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     services:
       postgres:
@@ -19,14 +22,14 @@ jobs:
           POSTGRES_PASSWORD: postgres
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 20
         ports:
           - 5432:5432
 
       opensearch:
-        image: opensearchproject/opensearch:2.13.0
+        image: opensearchproject/opensearch:3.3.0
         env:
           discovery.type: single-node
           plugins.security.disabled: true
@@ -39,15 +42,15 @@ jobs:
           OPENSEARCH_INITIAL_ADMIN_PASSWORD: "DevOnly-pass43431"
         options: >-
           --health-cmd "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=50s"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 40
           --ulimit nofile=65536:65536
         ports:
           - 9200:9200
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Free disk space (CI, conditional)
         run: |
@@ -72,7 +75,7 @@ jobs:
         run: PGPASSWORD=postgres createdb -h localhost -p 5432 -U postgres dataroom
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 22.14.0
           cache: "npm"
@@ -89,17 +92,26 @@ jobs:
         run: npm run build
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.13.0
 
-      - name: Install Poetry
-        run: |
-          python -m pip install --upgrade pip
-          pip install -U poetry
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.20"
+          enable-cache: true
+
+      # The venv is restored whole, keyed on the lockfile - skips reinstalling
+      # and recompiling the C extensions (pycurl, python-snappy) on every run.
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py3.13.0-${{ hashFiles('uv.lock') }}
 
       - name: Install Python dependencies
-        run: poetry install --with dev
+        run: uv sync --locked --all-groups
 
       - name: Collect static
         run: |
@@ -130,12 +142,10 @@ jobs:
 
           # Cluster-level settings are configured via service env in this workflow. Here we only clear any
           # index-level read-only blocks that might already be set.
-          # Clear any index-level read-only blocks that may already have been set by flood-stage watermark.
           curl -sS --retry 20 --retry-all-errors --retry-delay 1 -X PUT "http://localhost:9200/_all/_settings" \
             -H "Content-Type: application/json" \
             -d '{"index.blocks.read_only_allow_delete": null, "index.blocks.read_only": null, "index.blocks.write": null}'
           echo ""
-          curl -sS --retry 10 --retry-all-errors --retry-delay 1 "http://localhost:9200/_cluster/settings?include_defaults=true" || true
 
       - name: Setup opensearch
         # GH Actions services are exposed to the runner via localhost port mapping (not via service DNS).
@@ -146,7 +156,7 @@ jobs:
       - name: Run tests
         run: |
           source .venv/bin/activate
-          python -m pytest --junit-xml=.test_report.xml
+          python -m pytest -n auto --junit-xml=.test_report.xml
         shell: bash
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dataroom

@@ -8,6 +8,21 @@ DataRoom is a high-performance AI training data management platform featuring a 
 
 To try it out, follow the guide below. Also check out the Python client inside [dataroom_client](./dataroom_client) and the examples in [notebooks](./notebooks).
 
+## Features
+
+### Filtering & Search
+A compact search/filter bar with a guided three-stage flow (field → operator → value) supporting keyword fields, numeric fields with histogram sliders, custom attributes, and similarity search (text, image, vector). Multi-select fields use checkboxes with faceted counts. Filters are applied on explicit action (Apply/Enter/Esc), not on each toggle.
+
+**Advanced filters** allow combining filter groups with OR logic and per-group negation (NOT). Accessible via the "Advanced" link in the filter dropdown. Each OR group is a full filter box with its own input and dropdown. The backend processes multi-lane filters via `filter_lanes` JSON query param, combining groups with `bool.should` and wrapping negated groups in `must_not`.
+
+See [frontend/src/layouts/images/filter/README.md](./frontend/src/layouts/images/filter/README.md) for the full architecture.
+
+### Image Selection
+A toggle-based selection mode with a side panel that can be minimized to a floating bar. Selected images persist across mode toggles and show subtle checkmarks when selection mode is inactive. Bulk actions include tagging and adding to datasets.
+
+### Datasets
+Datasets with versioning, freeze support, and cover images. Dataset tiles show preview images with loading skeletons.
+
 ## Getting Started
 
 The simplest and fastest way to get a Dataroom stack up and running is to use Docker. If you prefer to run it without Docker, see section [Setup without Docker](#setup-without-docker).
@@ -19,15 +34,9 @@ cp backend/config/settings/local.example.py backend/config/settings/local.py
 
 ### Build and Start Services
 
-The following command builds and starts the Django, Postgres and OpenSearch containers:
+The following command builds and starts the Django, Vite,  Postgres and OpenSearch containers:
 ```bash
 docker compose up -d --build
-```
-
-### Collect Static Files
-The static files are built as part of the Django docker. To collect them, we run:
-```bash
-docker compose run --rm dataroom_django python manage.py collectstatic --link --clear --noinput
 ```
 
 ### Run Database Migrations
@@ -45,7 +54,12 @@ docker compose run --rm dataroom_django python manage.py setup_opensearch --conf
 ### Create admin user
 
 ```bash
-docker compose run --rm dataroom_django python manage.py createsuperuser --noinput --email admin@photoroom.dev
+docker compose exec \
+  -e DJANGO_SUPERUSER_PASSWORD=admin \
+  dataroom_django \
+  python manage.py createsuperuser \
+  --noinput \
+  --email admin@photoroom.dev
 ```
 
 ### Access the application
@@ -112,6 +126,29 @@ Please install the pre-commit hooks for maintaining code quality:
 pre-commit install --hook-type pre-commit
 ```
 
+### Local MinIO Storage
+
+For local development, images are stored in MinIO (S3-compatible storage).
+
+**Access MinIO Console**: http://localhost:9001 (login: `minioadmin` / `minioadmin`)
+
+### Import Images from Local Folder
+
+Import images via the DataRoom API (uses `/sample_images` by default):
+```bash
+# Import from default folder (sample_images/)
+docker compose exec dataroom_django python manage.py import_images
+
+# Dry run (preview what will be imported)
+docker compose exec dataroom_django python manage.py import_images --dry-run
+
+# Import from custom folder
+docker compose exec dataroom_django python manage.py import_images /path/to/folder
+
+# Import with custom source
+docker compose exec dataroom_django python manage.py import_images --source="my-dataset"
+```
+
 ### Other Useful Commands
 Run production server:
 ```bash
@@ -138,9 +175,9 @@ Restart specific service:
 docker compose restart opensearch
 ```
 
-Update poetry lock file after adding new dependencies to `pyproject.toml`:
+Update the lock file after adding new dependencies to `pyproject.toml`:
 ```bash
-./scripts/poetry-lock.sh
+./scripts/uv-lock.sh
 ```
 
 ### Static files in production
@@ -163,8 +200,7 @@ Update poetry lock file after adding new dependencies to `pyproject.toml`:
 Install these prerequisites:
 
 - `python@3.13.0`
-- `virtualenv` https://virtualenv.pypa.io/en/latest/installation.html
-- `poetry@2.0.1` https://python-poetry.org/docs/#installation
+- `uv` https://docs.astral.sh/uv/getting-started/installation/
 - `nvm` https://github.com/nvm-sh/nvm
 - Postgres v16 https://postgresapp.com/
 - `brew install snappy`
@@ -205,18 +241,14 @@ pyenv install
 pyenv local
 ```
 
-To create a virtualenv, inside the root project folder, run:
+To create the virtualenv and install all Python dependencies, inside the root
+project folder run:
 
 ```
-virtualenv .venv
+uv sync --all-groups
 ```
 
-To install all python requirements:
-
-```
-pip install poetry==1.7.1
-poetry install
-```
+This creates `.venv` and installs the locked dependencies (including dev tooling).
 
 Copy and enable local settings:
 

@@ -6,6 +6,8 @@ from backend.task_runner.tasks.delete_images import (
     image_delete_marked_for_deletion,
 )
 from backend.task_runner.tasks.r2_migration import r2_migration_fetch_files, r2_migration_get_all_files
+from backend.task_runner.tasks.reconcile_datasets import reconcile_datasets_periodic
+from backend.task_runner.tasks.reconcile_memberships import reconcile_memberships_periodic
 from backend.task_runner.tasks.update_datadog import update_datadog_dashboard
 from backend.task_runner.tasks.update_images import (
     get_images_without_duplicate_state,
@@ -65,6 +67,23 @@ update_count_stats_task = PeriodicTaskConfig(
 update_queue_stats_task = PeriodicTaskConfig(
     task_function=update_queue_stats,
     interval_seconds=60 * 2,
+)
+
+reconcile_memberships_task = PeriodicTaskConfig(
+    task_function=reconcile_memberships_periodic,
+    # Every 5 minutes. Only failed inline OS writes land here, so healthy runs are
+    # no-ops via the partial index; a minute of polling bought nothing.
+    interval_seconds=300,
+)
+
+reconcile_datasets_task = PeriodicTaskConfig(
+    task_function=reconcile_datasets_periodic,
+    # Every 5 minutes. Unlike the memberships reconciler, healthy runs are NOT no-ops:
+    # add_images_to_dataset writes OS asynchronously and cannot confirm the write, so it
+    # leaves its rows unsynced for this task to drive and flip. A longer interval batches
+    # several adds into one recompute per dataset; the async write has already landed the
+    # right value within ~1s, so nothing user-visible waits on this.
+    interval_seconds=300,
 )
 
 r2_migration_task = QueuedTaskConfig(

@@ -1,30 +1,17 @@
-import { createBrowserRouter, LoaderFunction } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 import { RootLayout } from "./layouts/RootLayout";
 import { ImagesLayout } from "./layouts/ImagesLayout";
 import { ImageListPage } from "./pages/ImageListPage";
 import { ImageDetailPage } from "./pages/ImageDetailPage";
 import { ErrorPage } from "./pages/ErrorPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { PageLayout } from "./layouts/PageLayout";
 import { URLS } from "./urls";
 import { DatasetsLayout } from "./layouts/DatasetsLayout";
 import { DatasetListPage } from "./pages/DatasetListPage";
 import { DatasetDetailPage } from "./pages/DatasetDetailPage";
-
-const page = (title?: string, existingLoader?: LoaderFunction) => {
-  // Add a loader to set the document title
-  const loader: LoaderFunction = async (...args) => {
-    document.title = title ? title + " - DataRoom" : "DataRoom";
-
-    // If there's an existing loader, call it with the same arguments
-    if (existingLoader) {
-      return await existingLoader(...args);
-    }
-    return null;
-  };
-
-  return { loader };
-};
+import { GroupsLayout } from "./layouts/GroupsLayout";
+import { GroupListPage } from "./pages/GroupListPage";
+import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { GroupTypeListPage } from "./pages/GroupTypeListPage";
 
 export const router = createBrowserRouter([
   {
@@ -65,7 +52,7 @@ export const router = createBrowserRouter([
                 element: <DatasetListPage />,
               },
               {
-                path: URLS.DATASET_DETAIL(":datasetSlug"),
+                path: URLS.DATASET_DETAIL(":datasetSlug", ":datasetVersion"),
                 element: <DatasetDetailPage />,
                 errorElement: <ErrorPage />,
               },
@@ -74,13 +61,26 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <PageLayout />,
+        element: <GroupsLayout />,
         errorElement: <ErrorPage />,
         children: [
           {
-            path: "settings",
-            element: <SettingsPage />,
-            ...page("Settings"),
+            errorElement: <ErrorPage />,
+            children: [
+              {
+                path: URLS.GROUP_LIST(),
+                element: <GroupListPage />,
+              },
+              {
+                path: URLS.GROUP_DETAIL(":groupId"),
+                element: <GroupDetailPage />,
+                errorElement: <ErrorPage />,
+              },
+              {
+                path: URLS.GROUP_TYPE_LIST(),
+                element: <GroupTypeListPage />,
+              },
+            ],
           },
         ],
       },

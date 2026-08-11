@@ -21,3 +21,43 @@ html,
 .dark * {
   scrollbar-color: var(--scrollbar-color-dark) transparent;
 }
+
+/* Range slider styling */
+input[type="range"].slider-visible {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+  height: 4px;
+}
+
+input[type="range"].slider-visible::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+input[type="range"].slider-visible::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  cursor: pointer;
+}
+
+.dark input[type="range"].slider-visible {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.dark input[type="range"].slider-visible::-webkit-slider-thumb {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.dark input[type="range"].slider-visible::-moz-range-thumb {
+  background: rgba(255, 255, 255, 0.6);
+}

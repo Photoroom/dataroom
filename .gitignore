@@ -67,3 +67,7 @@ db.sqlite3
 /backend/media/
 /local_files/
 /notebooks/local_files/
+sample_images/
+/models
+notebooks/local_files/
+notebooks/loader_files/

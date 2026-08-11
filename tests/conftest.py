@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 import pytest
 from django.contrib.auth.models import Permission
 from django.core.files.base import ContentFile
+from django.conf import settings
 
 from backend.users.models.token import Token
 
@@ -10,21 +12,134 @@ from backend.dataroom.opensearch import OS
 from backend.dataroom.utils.disable_signals import DisableSignals
 from backend.users.models.user import User
 from dataroom_client import DataRoomClient, DataRoomFile
+from backend.dataroom.models.group import GroupType, GroupTypeRole, Role
 
 from . import vectors
 
+# Under pytest-xdist every worker gets its own OpenSearch index (pytest-django
+# already gives each worker its own test database). The per-test setup fixture
+# below drops and recreates OSImage.INDEX, so without this suffix parallel
+# workers would clobber each other's index mid-test.
+_XDIST_WORKER = os.environ.get('PYTEST_XDIST_WORKER')
+if _XDIST_WORKER:
+    settings.OPENSEARCH_IMAGES_INDEX_NAME = f'{settings.OPENSEARCH_IMAGES_INDEX_NAME}_{_XDIST_WORKER}'
+    OSImage.INDEX = settings.OPENSEARCH_IMAGES_INDEX_NAME
+    # image ids (and so their media paths) are deterministic across workers -
+    # on a shared MEDIA_ROOT one worker can resurrect a file another worker
+    # just permanently deleted
+    settings.MEDIA_ROOT = Path(f'{settings.MEDIA_ROOT}_{_XDIST_WORKER}')
 
-@pytest.fixture(autouse=True, scope="function")
-def setup():
-    # run before each test
-    if OS.client.indices.exists(index=OSImage.INDEX):
-        # delete the index
-        OS.client.indices.delete(index=OSImage.INDEX)
-    # create the index
+
+# GroupTypes used by tests. Domain-flavored names so the test fixtures don't
+# look like a fixed taxonomy:
+#   - zara_product        permissive type, optional roles only
+#   - recolor_dresses     required ``main`` role + required metadata.author
+#   - pose_pair           required from/to roles + required metadata.context
+_SEED_TYPES = {
+    'zara_product': {
+        'metadata_schema': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {},
+        },
+        'roles': [('nobody', False), ('onhang', False), ('front', False), ('side', False)],
+    },
+    'recolor_dresses': {
+        'metadata_schema': {
+            'type': 'object',
+            'additionalProperties': False,
+            'required': ['author'],
+            'properties': {'author': {'type': 'string', 'maxLength': 128}},
+        },
+        'roles': [('member', False), ('main', True)],
+    },
+    'pose_pair': {
+        'metadata_schema': {
+            'type': 'object',
+            'additionalProperties': False,
+            'required': ['context'],
+            'properties': {'context': {'type': 'object'}},
+        },
+        'roles': [('from', True), ('to', True)],
+    },
+}
+
+
+@pytest.fixture(autouse=True)
+def seed_group_types(db):
+    """Re-seed GroupType / Role / GroupTypeRole on every test.
+
+    pytest-django flushes the DB between transaction-mode tests, so this
+    fixture re-creates the test types and their allowed-role tables for any
+    test that touches Group/Membership.
+    """
+    for type_name, spec in _SEED_TYPES.items():
+        gt, _ = GroupType.objects.update_or_create(
+            name=type_name,
+            defaults={'metadata_schema': spec['metadata_schema']},
+        )
+        for role_name, is_required in spec['roles']:
+            role, _ = Role.objects.get_or_create(name=role_name)
+            GroupTypeRole.objects.update_or_create(
+                group_type=gt,
+                role=role,
+                defaults={'is_required': is_required},
+            )
+
+
+_PRISTINE_MAPPING = None
+
+
+def _create_os_index():
     OS.client.indices.create(
         index=OSImage.INDEX,
         body=OSImage.INDEX_SETTINGS,
     )
+    # create acks before the shard is searchable - without the wait the next
+    # doc GET can 503 with no_shard_available
+    OS.client.cluster.health(index=OSImage.INDEX, wait_for_status='yellow', request_timeout=10)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def os_index():
+    # one index per worker for the whole session: index create/delete are
+    # cluster-state updates the node applies serially, so doing them per test
+    # both slows the suite down and times out under parallel workers
+    global _PRISTINE_MAPPING
+    if OS.client.indices.exists(index=OSImage.INDEX):
+        OS.client.indices.delete(index=OSImage.INDEX)
+    _create_os_index()
+    _PRISTINE_MAPPING = OS.client.indices.get_mapping(index=OSImage.INDEX)[OSImage.INDEX]
+
+
+@pytest.fixture(autouse=True, scope="function")
+def setup(os_index):
+    # each test still starts on a clean index; cleanup runs after the test
+    yield
+    if not OS.client.indices.exists(index=OSImage.INDEX):
+        # the test deleted the index itself - restore it
+        _create_os_index()
+        return
+    if OS.client.indices.get_mapping(index=OSImage.INDEX)[OSImage.INDEX] != _PRISTINE_MAPPING:
+        # the test mapped extra fields (attributes tests) - mappings cannot be
+        # removed, only a recreate resets them
+        OS.client.indices.delete(index=OSImage.INDEX)
+        _create_os_index()
+        return
+    OS.client.indices.refresh(index=OSImage.INDEX)
+    if OS.client.count(index=OSImage.INDEX)['count'] > 0:
+        OS.client.delete_by_query(
+            index=OSImage.INDEX,
+            body={"query": {"match_all": {}}},
+            refresh=True,
+            conflicts="proceed",
+        )
+        # merge the emptied segments away: deleted docs otherwise linger as
+        # tombstones in the HNSW graph (kNN returns fewer than k hits), and
+        # leftover segments shift the internal doc ids that break kNN
+        # score ties, making result order differ from a fresh index
+        OS.client.indices.forcemerge(index=OSImage.INDEX, max_num_segments=1)
+        OS.client.indices.refresh(index=OSImage.INDEX)
 
 
 @pytest.fixture

@@ -167,18 +167,22 @@ def test_stats_api(user, tests_path, image_logo, image_logo_alt, image_logo_smal
     assert response.status_code == 200
     assert response.json() == [{
         'name': 'color',
+        'description': '',
         'field_type': 'string',
         'string_format': None,
         'is_enabled': True,
         'is_indexed': True,
         'image_count': 1,
+        'enum_choices': None,
     }, {
         'name': 'has_background',
+        'description': '',
         'field_type': 'boolean',
         'string_format': None,
         'is_enabled': True,
         'is_indexed': True,
         'image_count': 0,
+        'enum_choices': None,
     }]
 
     url = reverse('api:stats-latent_types')

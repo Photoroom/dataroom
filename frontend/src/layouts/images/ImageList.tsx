@@ -3,13 +3,16 @@ import { twMerge } from "tailwind-merge";
 import { CheckIcon } from "@heroicons/react/24/outline";
 import { ImageLoading } from "../../components/image/ImageLoading";
 import { Image } from "../../components/image/Image";
-import { ImageListMode, useImageListData } from "../../context/ImageListDataContext";
+import { useImageListData } from "../../context/ImageListDataContext";
+import { useDragSelect } from "../../context/useDragSelect";
 import { Loader } from "../../components/common/Loader";
 import { MainContainer } from "../MainContainer";
 import { useImageDrawer } from "../../context/ImageDrawerContext";
+import { useSidebarConfig } from "./filter/useSidebarConfig";
 
 export const ImageList: React.FC = function () {
-  const { isDrawerOpen } = useImageDrawer();
+  const { isVisible: isSidebarOpen, width: sidebarWidth } = useSidebarConfig();
+  const { isDrawerOpen, openDrawer, imageId } = useImageDrawer();
   const {
     images,
     isLoadingImages,
@@ -22,10 +25,22 @@ export const ImageList: React.FC = function () {
     isSelecting,
     selectedImages,
     toggleSelectedImage,
+    addSelectedImages,
+    gridColumns,
   } = useImageListData();
 
+  // -------------------- Shared scroll container ref --------------------
+  const mainDivRef = useRef<HTMLDivElement>(null);
+
+  // -------------------- Drag-to-select --------------------
+  const { selectionRect, onMouseDown, onClickCapture } = useDragSelect({
+    containerRef: mainDivRef,
+    enabled: isSelecting,
+    attribute: "data-image-id",
+    onSelect: addSelectedImages,
+  });
+
   // -------------------- Infinite scroll --------------------
-  const mainDivRef = useRef(null);
   useEffect(() => {
     const div = mainDivRef.current as HTMLDivElement | null;
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -37,8 +52,7 @@ export const ImageList: React.FC = function () {
         isLoadingImagesError ||
         isLoadingNextPage ||
         isLoadingNextPageError ||
-        !hasNextPage ||
-        mode === ImageListMode.RANDOM
+        !hasNextPage
       ) {
         return;
       }
@@ -72,11 +86,33 @@ export const ImageList: React.FC = function () {
 
   // -------------------- Render --------------------
   return (
-    <MainContainer ref={mainDivRef} isDrawerOpen={isDrawerOpen}>
+    <MainContainer
+      ref={mainDivRef}
+      isDrawerOpen={isDrawerOpen}
+      isSidebarOpen={isSidebarOpen}
+      sidebarWidth={sidebarWidth}
+      hasSecondToolbarRow
+    >
+      {/* Selection rectangle — position:absolute so it lives in content space and scrolls with the container */}
+      {selectionRect && (
+        <div
+          style={{
+            position: "absolute",
+            left: selectionRect.left,
+            top: selectionRect.top,
+            width: selectionRect.width,
+            height: selectionRect.height,
+            pointerEvents: "none",
+            zIndex: 50,
+          }}
+          className="border border-brand-400 bg-brand-400/10"
+        />
+      )}
       <div
-        className={twMerge(
-          "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 p-4"
-        )}
+        onMouseDown={onMouseDown}
+        onClickCapture={onClickCapture}
+        style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
+        className={twMerge("grid gap-2 p-2 sm:gap-4 sm:p-4", isSelecting ? "select-none" : "")}
       >
         {/* -------------------- Image list -------------------- */}
         {isLoadingImages
@@ -98,15 +134,23 @@ export const ImageList: React.FC = function () {
       {/* -------------------- Load more button -------------------- */}
       <div className="flex flex-row items-center justify-center my-10 min-h-12">
         {isLoadingNextPage && <Loader />}
-        {!isLoadingNextPage && (hasNextPage || mode === ImageListMode.RANDOM) && (
+        {!isLoadingNextPage && hasNextPage && (
           <button type="button" className="btn btn-sm btn-outline" onClick={loadNextPage}>
-            Load more{mode === ImageListMode.RANDOM && " randomly"}
+            Load more
           </button>
         )}
-        {!isLoadingNextPage && !hasNextPage && mode !== ImageListMode.RANDOM && (
-          <CheckIcon className="size-6 opacity-50" />
-        )}
+        {!isLoadingNextPage && !hasNextPage && <CheckIcon className="size-6 opacity-50" />}
       </div>
+      {/* Re-open drawer button when panel is hidden but image is selected */}
+      {!isDrawerOpen && imageId && (
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="fixed bottom-4 right-4 z-20 px-3 py-2 rounded-lg bg-black/80 text-white text-xs shadow-lg hover:bg-black cursor-pointer dark:bg-white/80 dark:text-black dark:hover:bg-white"
+        >
+          Show details
+        </button>
+      )}
     </MainContainer>
   );
 };

@@ -5,8 +5,8 @@ set -e
 ENV=${1:-prod}
 
 # Validate environment
-if [ "$ENV" != "dev" ] && [ "$ENV" != "eval" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "prod" ]; then
-    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'eval', 'staging', or 'prod'"
+if [ "$ENV" != "dev" ] && [ "$ENV" != "eval" ] && [ "$ENV" != "prod" ] && [ "$ENV" != "production" ]; then
+    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'eval', 'prod', or 'production'"
     exit 1
 fi
 
@@ -23,8 +23,8 @@ case $ENV in
     "dev")
         DJANGO_SETTINGS="backend.config.settings.dev"
         ;;
-    "staging")
-        DJANGO_SETTINGS="backend.config.settings.staging"
+    "production")
+        DJANGO_SETTINGS="backend.config.settings.production"
         ;;
 esac
 

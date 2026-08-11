@@ -82,15 +82,6 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>((props, ref) =
     inputRef.current.focus();
   }
 
-  // Handle datalist selection - auto-add tag when an option is selected
-  function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const inputValue = event.target.value;
-    // Check if the input value matches one of the datalist options
-    if (options.includes(inputValue)) {
-      addTag();
-    }
-  }
-
   return (
     <div
       className="flex flex-row flex-wrap gap-1 items-center px-2 py-1 rounded-xl min-h-[48px] border border-black/20 dark:border-white/20"
@@ -112,7 +103,6 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>((props, ref) =
         className="grow border-0 bg-transparent px-2 h-[32px] outline-0 ring-0 focus:border-0 focus:outline-0 focus:ring-0"
         type="text"
         onKeyDown={onKeyDown}
-        onChange={handleInputChange}
         ref={inputRef}
         list="tags"
         placeholder={placeholder}

@@ -7,13 +7,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // disable caching
       staleTime: 0,
-      gcTime: 0,
-      // disable refetching
+      gcTime: 30_000, // keep cached data for 30s after last observer unmounts
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      refetchOnMount: false,
     },
   },
 });

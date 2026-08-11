@@ -6,17 +6,9 @@
       inline-flex items-center justify-center align-middle
       transition-colors;
 
+  @apply gap-1.5;
   > svg {
     @apply inline-block w-[24px] h-[24px] my-[-1px] shrink-0;
-    &:first-child {
-      @apply mr-1 -ml-1;
-    }
-    &:last-child {
-      @apply -mr-1 ml-1;
-    }
-    &:only-child {
-      @apply mr-0 ml-0;
-    }
   }
 
   /* ----------------- disabled */

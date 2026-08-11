@@ -41,4 +41,16 @@
   --color-dark: #171717;
   --color-dark-100: #262626;
   --color-dark-300: #3f3f46;
+
+  /* Brand purple — base rgb(65, 12, 217) / #410CD9 */
+  --color-brand-50: #f3f0ff;
+  --color-brand-100: #e9e0ff;
+  --color-brand-200: #d4c4ff;
+  --color-brand-300: #b89aff;
+  --color-brand-400: #9b6dff;
+  --color-brand-500: #7c3aff;
+  --color-brand-600: #410cd9;
+  --color-brand-700: #3509b0;
+  --color-brand-800: #2b0a8a;
+  --color-brand-900: #1e0860;
 }
