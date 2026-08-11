@@ -13,10 +13,10 @@ repos:
     hooks:
       - id: flake8
 
-  - repo: https://github.com/python-poetry/poetry
-    rev: 2.0.1
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.20
     hooks:
-      - id: poetry-check
+      - id: uv-lock
 
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v9.32.0
@@ -42,12 +42,19 @@ repos:
           - eslint-plugin-react-hooks@^4.6.0
           - eslint-plugin-react-refresh@^0.4.3
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
+  # Uses the prettier from package.json so this hook and `npm run format` cannot
+  # disagree about formatting.
+  #
+  # Keep this file list in sync with the format/format:check scripts in
+  # package.json: the hook only sees files that are in a commit, so anything it
+  # formats but the scripts do not check can rot unnoticed.
+  - repo: local
     hooks:
       - id: prettier
-        files: frontend/.*\.(js|jsx|ts|tsx|json|css|scss|md)$
-        args: [--no-error-on-unmatched-pattern]
+        name: prettier
+        entry: npx --no-install prettier --write --no-error-on-unmatched-pattern
+        language: system
+        files: ^frontend/.*\.(js|jsx|ts|tsx|json|css|scss|md)$
 
   - repo: local
     hooks:

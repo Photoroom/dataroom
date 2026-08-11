@@ -40,10 +40,10 @@ async def test_aggregate_images(DataRoom, image_logo, image_girl, image_perfume)
     assert response == {
         'values': {
             '1.0': 120.0,
-            '25.0': 135.0,
+            '25.0': 120.0,
             '5.0': 120.0,
             '50.0': 180.0,
-            '75.0': 345.0,
+            '75.0': 400.0,
             '95.0': 400.0,
             '99.0': 400.0,
         }

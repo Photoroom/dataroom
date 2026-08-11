@@ -13,7 +13,9 @@ from backend.dataroom.models import (
     Stats,
     Tag,
 )
-from backend.dataroom.models.dataset import Dataset
+from backend.dataroom.models.dataset import Dataset, DatasetMembership
+from backend.dataroom.models.group import Group, GroupType, GroupTypeRole, Membership, Role
+from backend.dataroom.models.query import Query
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,91 @@ logger = logging.getLogger(__name__)
 class TagAdmin(admin.ModelAdmin):
     list_display = ("name", "description", "date_created", "image_count")
     readonly_fields = ("date_created", "date_updated")
+
+
+_DEFAULT_METADATA_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {},
+}
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+
+
+class GroupTypeRoleInline(admin.TabularInline):
+    model = GroupTypeRole
+    extra = 1
+    autocomplete_fields = ("role",)
+
+
+@admin.register(GroupType)
+class GroupTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "description", "date_updated")
+    readonly_fields = ("date_created", "date_updated")
+    inlines = [GroupTypeRoleInline]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("name", "description"),
+                "description": (
+                    "<b>name</b> is the PK referenced by Group rows and is also "
+                    "the prefix used in Group.id (<code>&lt;name&gt;_&lt;uuid&gt;</code>). "
+                    "Immutable after creation."
+                ),
+            },
+        ),
+        (
+            "Metadata schema (JSON Schema)",
+            {
+                "fields": ("metadata_schema",),
+                "description": "<b>metadata_schema</b> validates Group.metadata.",
+            },
+        ),
+        ("Timestamps", {"fields": ("date_created", "date_updated")}),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            # name locks after creation (referenced by Group rows + their ids)
+            return (*self.readonly_fields, "name")
+        return self.readonly_fields
+
+    def get_changeform_initial_data(self, request):
+        # Pre-fill the schema with a sensible empty template so admins start from valid JSON
+        return {
+            "metadata_schema": _DEFAULT_METADATA_SCHEMA,
+        }
+
+
+class MembershipInline(admin.TabularInline):
+    model = Membership
+    extra = 0
+    fields = ("image_id", "role", "metadata", "date_created")
+    readonly_fields = ("date_created",)
+
+
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "type", "author", "deleted_at", "date_created")
+    list_filter = ("type", "deleted_at")
+    search_fields = ("id", "name")
+    readonly_fields = ("id", "type", "date_created", "date_updated")
+    raw_id_fields = ("author",)
+    inlines = [MembershipInline]
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ("id", "group", "image_id", "role", "date_created")
+    list_filter = ("role",)
+    search_fields = ("group__id", "image_id", "role")
+    readonly_fields = ("id", "date_created", "date_updated")
+    raw_id_fields = ("group",)
 
 
 @admin.register(AttributesField)
@@ -70,14 +157,30 @@ class AttributesFieldAdmin(admin.ModelAdmin):
         return super().changelist_view(request, extra_context=extra_context)
 
 
+class DatasetMembershipInline(admin.TabularInline):
+    model = DatasetMembership
+    extra = 0
+    fields = ("group", "deleted_at", "date_created")
+    readonly_fields = ("date_created",)
+    autocomplete_fields = ("group",)
+
+
 @admin.register(Dataset)
 class DatasetAdmin(admin.ModelAdmin):
-    list_display = ('slug_version', 'name', 'image_count', 'is_frozen')
+    list_display = ('slug_version', 'name', 'type', 'is_frozen', 'date_created')
     search_fields = ('slug_version', 'name')
-    list_filter = ('is_frozen', 'slug')
+    list_filter = ('is_frozen', 'type')
     prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ('slug_version', 'version', 'image_count')
+    # type locks at creation (immutable); slug_version/version are derived.
+    readonly_fields = ('slug_version', 'version', 'type', 'date_created', 'date_updated')
     raw_id_fields = ('author',)
+    inlines = [DatasetMembershipInline]
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            # On create, type must be settable; slug_version/version still derived.
+            return ('slug_version', 'version', 'date_created', 'date_updated')
+        return self.readonly_fields
 
 
 @admin.register(LatentType)
@@ -162,10 +265,11 @@ class StatsAdmin(admin.ModelAdmin):
             self.admin_site.each_context(request),
         )
 
+        cluster_info = OS.client.info()
         cluster_health = OS.client.cluster.health(timeout=25)
         node_stats = OS.client.nodes.stats(timeout=25)
-        knn_stats = OS.client.transport.perform_request('GET', '/_opendistro/_knn/stats')
-        images_stats = OS.client.indices.stats(index=OSImage.INDEX, timeout=25)
+        knn_stats = OS.client.transport.perform_request('GET', '/_plugins/_knn/stats')
+        images_stats = OS.client.indices.stats(index=OSImage.INDEX, timeout=25, level='shards')
         images_mapping = OS.client.indices.get_mapping(index=OSImage.INDEX)
         images_settings = OS.client.indices.get_settings(index=OSImage.INDEX)
 
@@ -180,18 +284,47 @@ class StatsAdmin(admin.ModelAdmin):
         except TransportError:
             snapshot_stats = None
 
+        index_stats = images_stats['indices'][OSImage.INDEX]
+        images_shard_details = []
+        for shard_num, copies in sorted(index_stats.get('shards', {}).items(), key=lambda x: int(x[0])):
+            for copy in copies:
+                images_shard_details.append(
+                    {
+                        'shard': shard_num,
+                        'primary': copy['routing']['primary'],
+                        'state': copy['routing']['state'],
+                        'node': copy['routing'].get('node', ''),
+                        'docs': copy['docs']['count'],
+                        'size_in_bytes': copy['store']['size_in_bytes'],
+                        'segments': copy['segments']['count'],
+                    }
+                )
+
         ctx.update(
             {
                 'title': 'OpenSearch',
+                'cluster_version': cluster_info['version']['number'],
                 'cluster_health': cluster_health,
                 'node_stats': node_stats,
                 'knn_stats': knn_stats,
                 'snapshot_stats': snapshot_stats,
-                'images_stats': images_stats['indices'][OSImage.INDEX],
+                'images_index_name': OSImage.INDEX,
+                'images_stats': index_stats,
                 'images_shards': images_stats['_shards'],
+                'images_shard_details': images_shard_details,
                 'images_mapping': images_mapping[OSImage.INDEX]['mappings'],
                 'images_settings': images_settings[OSImage.INDEX]['settings']['index'],
             }
         )
 
         return TemplateResponse(request, "admin/custom/opensearch.html", ctx)
+
+
+@admin.register(Query)
+class QueryAdmin(admin.ModelAdmin):
+    list_display = ('slug', 'name', 'author')
+    search_fields = ('slug', 'name', 'description')
+    list_filter = ('author',)
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('query_dict',)
+    raw_id_fields = ('author',)

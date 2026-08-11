@@ -1,4 +1,5 @@
 import copy
+import json
 
 import django_filters
 import rest_framework.exceptions
@@ -13,14 +14,20 @@ from opensearchpy import Q, Search
 
 from backend.api.filters import WhitespacePreservingCharField
 from backend.dataroom.choices import AttributesFilterComparator, DuplicateState
+from backend.dataroom.groups.os_fields import text_to_keyword_field
 from backend.dataroom.models import AttributesSchema
-from backend.dataroom.models.dataset import Dataset
 from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSFieldType, OSLatents
-from backend.dataroom.models.tag import Tag
+from backend.dataroom.models.query import Query
 
 
 class InvalidFilterError(Exception):
     pass
+
+
+# Generic filter field sets — adding a new numeric/date field is just one word
+NUMERIC_FIELDS = {'width', 'height', 'short_edge', 'pixel_count', 'aspect_ratio'}
+DATE_FIELDS = {'date_created', 'date_updated'}
+RANGE_OPS = {'gt', 'gte', 'lt', 'lte'}
 
 
 class OSFilterMixin:
@@ -82,21 +89,6 @@ class OSImageFilterSet(django_filters.FilterSet):
         method='filter_by_sources__ne', is_list=True, help_text='Comma-separated list of sources to exclude.'
     )
     source__empty = OSEmptyStringFilter(field_name='source', help_text='Filter images with no source.')
-    short_edge = OSNumberFilter(field_name='short_edge')
-    short_edge__gt = OSNumberRangeFilter(field_name='short_edge', lookup_expr='gt')
-    short_edge__gte = OSNumberRangeFilter(field_name='short_edge', lookup_expr='gte')
-    short_edge__lt = OSNumberRangeFilter(field_name='short_edge', lookup_expr='lt')
-    short_edge__lte = OSNumberRangeFilter(field_name='short_edge', lookup_expr='lte')
-    pixel_count = OSNumberFilter(field_name='pixel_count')
-    pixel_count__gt = OSNumberRangeFilter(field_name='pixel_count', lookup_expr='gt')
-    pixel_count__gte = OSNumberRangeFilter(field_name='pixel_count', lookup_expr='gte')
-    pixel_count__lt = OSNumberRangeFilter(field_name='pixel_count', lookup_expr='lt')
-    pixel_count__lte = OSNumberRangeFilter(field_name='pixel_count', lookup_expr='lte')
-    aspect_ratio = OSNumberFilter(field_name='aspect_ratio')
-    aspect_ratio__gt = OSNumberRangeFilter(field_name='aspect_ratio', lookup_expr='gt')
-    aspect_ratio__gte = OSNumberRangeFilter(field_name='aspect_ratio', lookup_expr='gte')
-    aspect_ratio__lt = OSNumberRangeFilter(field_name='aspect_ratio', lookup_expr='lt')
-    aspect_ratio__lte = OSNumberRangeFilter(field_name='aspect_ratio', lookup_expr='lte')
     aspect_ratio_fraction = OSCharFilter(field_name='aspect_ratio_fraction')
     aspect_ratio_fraction__empty = OSEmptyStringFilter(
         field_name='aspect_ratio_fraction', help_text='Filter images with no aspect ratio fraction.'
@@ -155,14 +147,6 @@ class OSImageFilterSet(django_filters.FilterSet):
         method='filter_by_coca_embedding_empty', help_text='Filter images with no coca embedding.'
     )
     duplicate_state = OSCharFilter(method='filter_by_duplicate_state')
-    date_created__gt = OSDateRangeFilter(field_name='date_created', lookup_expr='gt')
-    date_created__gte = OSDateRangeFilter(field_name='date_created', lookup_expr='gte')
-    date_created__lt = OSDateRangeFilter(field_name='date_created', lookup_expr='lt')
-    date_created__lte = OSDateRangeFilter(field_name='date_created', lookup_expr='lte')
-    date_updated__gt = OSDateRangeFilter(field_name='date_updated', lookup_expr='gt')
-    date_updated__gte = OSDateRangeFilter(field_name='date_updated', lookup_expr='gte')
-    date_updated__lt = OSDateRangeFilter(field_name='date_updated', lookup_expr='lt')
-    date_updated__lte = OSDateRangeFilter(field_name='date_updated', lookup_expr='lte')
     datasets = OSCharFilter(
         method='filter_by_datasets',
         is_list=True,
@@ -183,7 +167,45 @@ class OSImageFilterSet(django_filters.FilterSet):
         is_list=True,
         help_text='Filter images that do not have all of these comma-separated list of datasets.',
     )
+    datasets__prefix = OSCharFilter(
+        method='filter_by_datasets__prefix',
+        is_list=True,
+        help_text='Filter images in any version of these comma-separated dataset slugs (version-agnostic).',
+    )
     datasets__empty = OSBooleanFilter(method='filter_by_datasets_empty', help_text='Filter images with no datasets.')
+    # group membership filters (see backend/dataroom/groups/ and the design docs).
+    # group_ids: comma-separated group ids. Compose with `roles` to filter exact role-in-group pairs.
+    group_ids = OSCharFilter(
+        method='filter_by_group_ids',
+        is_list=True,
+        help_text='Comma-separated list of group ids the image is a member of (any).',
+    )
+    roles = OSCharFilter(
+        method='filter_by_roles',
+        is_list=True,
+        help_text='Comma-separated list of membership roles (any group).',
+    )
+    roles__ne = OSCharFilter(
+        method='filter_by_roles__ne',
+        is_list=True,
+        help_text='Filter images that do not have any of these comma-separated roles.',
+    )
+    roles__all = OSCharFilter(
+        method='filter_by_roles__all',
+        is_list=True,
+        help_text='Filter images that have all of these comma-separated roles.',
+    )
+    roles__ne_all = OSCharFilter(
+        method='filter_by_roles__ne_all',
+        is_list=True,
+        help_text='Filter images that do not have all of these comma-separated roles.',
+    )
+    roles__empty = OSBooleanFilter(method='filter_by_roles_empty', help_text='Filter images with no group memberships.')
+    group_type = OSCharFilter(
+        method='filter_by_group_type',
+        help_text='Filter to images in any group of this type (e.g. product, dataset, relationship).',
+    )
+    query = OSCharFilter(method='filter_by_query', help_text='Filter images by query.')
 
     def __init__(self, data=None, search=None, *, request=None, prefix=None):
         self.is_bound = data is not None
@@ -216,12 +238,35 @@ class OSImageFilterSet(django_filters.FilterSet):
         This method should be overridden if additional filtering needs to be
         applied to the search before it is cached.
         """
+        # 1. Standard declared filters (sources, tags, attributes, etc.)
         for name, value in self.form.cleaned_data.items():
             search = self.filters[name].filter(search, value)
             assert isinstance(
                 search,
                 Search,
             ), f"Expected '{type(self).__name__}.{name}' to return a Search, but got a {type(search).__name__} instead."
+
+        # 2. Generic numeric/date range filters — no declaration needed
+        for param, value in self.data.items():
+            if param in self.filters or not value:
+                continue
+            parts = param.rsplit('__', 1)
+            field, op = (parts[0], parts[1]) if len(parts) == 2 else (param, None)
+
+            if field in NUMERIC_FIELDS:
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if op in RANGE_OPS:
+                    search = search.filter("range", **{field: {op: numeric_value}})
+                elif op == 'ne':
+                    search = search.filter("bool", must_not=[{"term": {field: numeric_value}}])
+                elif op is None:
+                    search = search.filter("term", **{field: numeric_value})
+            elif field in DATE_FIELDS and op in RANGE_OPS:
+                search = search.filter("range", **{field: {op: value}})
+
         return search
 
     def filter_by_sources(self, search, name, value):
@@ -396,30 +441,27 @@ class OSImageFilterSet(django_filters.FilterSet):
         )
         return search
 
-    def _validate_tags(self, value):
-        tag_names = value.split(',')
-        tags = Tag.objects.filter(name__in=tag_names)
-        missing = set(tag_names) - set([tag.name for tag in tags])
-        if len(missing):
-            ms = ",".join([f"'{m}'" for m in missing])
-            raise rest_framework.exceptions.ValidationError(f'One or more tags do not exist: {ms}')
-        return tags
-
+    # Tags are filtered directly against OpenSearch (the source of truth for what's on an
+    # image), NOT validated against the Postgres Tag table. Tag cardinality is effectively
+    # unbounded (e.g. per-product tags like "product_47brand_com_11591462740"), so the Tag
+    # table — synced from a capped aggregation — can never be a complete list; validating
+    # against it 400s on any tag beyond the cap even though it exists in the index. Filtering
+    # by an unknown tag simply matches nothing, exactly like `sources`.
     def filter_by_tags(self, search, name, value):
-        tags = self._validate_tags(value)
-        return search.filter("terms", tags=[tag.name for tag in tags])
+        tags = value.split(',')
+        return search.filter("terms", tags=tags)
 
     def filter_by_tags__ne(self, search, name, value):
-        tags = self._validate_tags(value)
-        return search.filter("bool", must_not=[{"terms": {"tags": [tag.name for tag in tags]}}])
+        tags = value.split(',')
+        return search.filter("bool", must_not=[{"terms": {"tags": tags}}])
 
     def filter_by_tags__all(self, search, name, value):
-        tags = self._validate_tags(value)
-        return search.filter("bool", must=[{"term": {"tags": tag.name}} for tag in tags])
+        tags = value.split(',')
+        return search.filter("bool", must=[{"term": {"tags": tag}} for tag in tags])
 
     def filter_by_tags__ne_all(self, search, name, value):
-        tags = self._validate_tags(value)
-        return search.filter("bool", must_not=[{"bool": {"must": [{"term": {"tags": tag.name}} for tag in tags]}}])
+        tags = value.split(',')
+        return search.filter("bool", must_not=[{"bool": {"must": [{"term": {"tags": tag}} for tag in tags]}}])
 
     def filter_by_tags_empty(self, search, name, value):
         if value:
@@ -446,37 +488,154 @@ class OSImageFilterSet(django_filters.FilterSet):
         else:
             return search.filter("term", duplicate_state=value.value)
 
-    def _validate_datasets(self, value):
-        dataset_slug_versions = value.split(',')
-        datasets = Dataset.objects.filter_by_slug_versions(slug_versions=dataset_slug_versions)
-        missing = set(dataset_slug_versions) - set([ds.slug_version for ds in datasets])
-        if len(missing):
-            ms = ",".join([f"'{m}'" for m in missing])
-            raise rest_framework.exceptions.ValidationError(f'One or more datasets do not exist: {ms}')
-        return datasets
-
     def filter_by_datasets(self, search, name, value):
-        datasets = self._validate_datasets(value)
-        return search.filter("terms", datasets=[ds.slug_version for ds in datasets])
+        datasets = value.split(',')
+        return search.filter("terms", datasets=datasets)
 
     def filter_by_datasets__ne(self, search, name, value):
-        datasets = self._validate_datasets(value)
-        return search.filter("bool", must_not=[{"terms": {"datasets": [ds.slug_version for ds in datasets]}}])
+        datasets = value.split(',')
+        return search.filter("bool", must_not=[{"terms": {"datasets": datasets}}])
 
     def filter_by_datasets__all(self, search, name, value):
-        datasets = self._validate_datasets(value)
-        return search.filter("bool", must=[{"term": {"datasets": ds.slug_version}} for ds in datasets])
+        datasets = value.split(',')
+        return search.filter("bool", must=[{"term": {"datasets": ds}} for ds in datasets])
 
     def filter_by_datasets__ne_all(self, search, name, value):
-        datasets = self._validate_datasets(value)
+        datasets = value.split(',')
+        return search.filter("bool", must_not=[{"bool": {"must": [{"term": {"datasets": ds}} for ds in datasets]}}])
+
+    def filter_by_datasets__prefix(self, search, name, value):
+        # Version-agnostic dataset match: an image's `datasets` entries are
+        # `slug/version` strings, so prefix `slug/` matches every version of a
+        # dataset. Pass bare slugs (e.g. `shoes`); the `/` is appended so
+        # `shoes` doesn't also match `shoes-2/1`.
+        prefixes = [v for v in value.split(',') if v]
+        if not prefixes:
+            return search
         return search.filter(
-            "bool", must_not=[{"bool": {"must": [{"term": {"datasets": ds.slug_version}} for ds in datasets]}}]
+            "bool",
+            should=[{"prefix": {"datasets": f'{p}/'}} for p in prefixes],
+            minimum_should_match=1,
         )
 
     def filter_by_datasets_empty(self, search, name, value):
         if value:
             return search.filter("bool", must_not=[{"exists": {"field": "datasets"}}])
         return search.filter("exists", field="datasets")
+
+    # ------------------------------------------------------------------
+    # Group / role membership filters
+    #
+    # Postgres stores group ids as plain UUIDs; OS denorm joins them with the
+    # group's type as ``<type>::<uuid>`` (and ``<role>::<type>::<uuid>`` in the
+    # memberships array). For exact-id filters we resolve UUID -> type once
+    # via Postgres before issuing the OS query.
+    # ------------------------------------------------------------------
+    def _encoded_gids(self, raw_value):
+        """Resolve a comma-separated list of group UUIDs into ``<type>::<uuid>`` strings.
+
+        Unknown ids are silently dropped — same shape as a no-match OS query.
+        """
+        from backend.dataroom.models.group import Group
+
+        uuids = [v for v in (raw_value or '').split(',') if v]
+        if not uuids:
+            return []
+        rows = Group.objects.filter(id__in=uuids).values_list('type_id', 'id')
+        return [f'{type_id}::{gid}' for type_id, gid in rows]
+
+    def filter_by_group_ids(self, search, name, value):
+        gids = self._encoded_gids(value)
+        if not gids:
+            return search
+        # If a roles filter is also set, filter_by_roles composes the encoded
+        # role::type::uuid terms; defer there to keep the clause single.
+        if self.data.get('roles'):
+            return search
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once group_ids is keyword everywhere.
+        return search.filter("terms", **{text_to_keyword_field("group_ids"): gids})
+
+    def filter_by_roles(self, search, name, value):
+        roles = [v for v in value.split(',') if v]
+        if not roles:
+            return search
+        gids = self._encoded_gids(self.data.get('group_ids'))
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once memberships is keyword everywhere.
+        if gids:
+            # exact (role, group) pairs — terms over the encoded keyword
+            terms = [f'{r}::{g}' for r in roles for g in gids]
+            return search.filter("terms", **{text_to_keyword_field("memberships"): terms})
+        # role-anywhere — bool should over prefix queries (low role cardinality)
+        return search.filter(
+            "bool",
+            should=[{"prefix": {text_to_keyword_field("memberships"): f'{r}::'}} for r in roles],
+            minimum_should_match=1,
+        )
+
+    # Same operators as tags, matched by prefix on the encoded memberships array.
+    def filter_by_roles__ne(self, search, name, value):
+        roles = [v for v in value.split(',') if v]
+        if not roles:
+            return search
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once memberships is keyword everywhere.
+        return search.filter(
+            "bool", must_not=[{"prefix": {text_to_keyword_field("memberships"): f'{r}::'}} for r in roles]
+        )
+
+    def filter_by_roles__all(self, search, name, value):
+        roles = [v for v in value.split(',') if v]
+        if not roles:
+            return search
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once memberships is keyword everywhere.
+        return search.filter("bool", must=[{"prefix": {text_to_keyword_field("memberships"): f'{r}::'}} for r in roles])
+
+    def filter_by_roles__ne_all(self, search, name, value):
+        roles = [v for v in value.split(',') if v]
+        if not roles:
+            return search
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once memberships is keyword everywhere.
+        return search.filter(
+            "bool",
+            must_not=[
+                {"bool": {"must": [{"prefix": {text_to_keyword_field("memberships"): f'{r}::'}} for r in roles]}}
+            ],
+        )
+
+    def filter_by_roles_empty(self, search, name, value):
+        if value:
+            return search.filter("bool", must_not=[{"exists": {"field": "memberships"}}])
+        return search.filter("exists", field="memberships")
+
+    def filter_by_group_type(self, search, name, value):
+        if not value:
+            return search
+        # TODO: fix after reindexing on prod — drop text_to_keyword_field() once group_ids is keyword everywhere.
+        return search.filter("prefix", **{text_to_keyword_field("group_ids"): f'{value}::'})
+
+    def filter_by_query(self, search, name, value):
+        try:
+            query = Query.objects.get(slug=value)
+        except Query.DoesNotExist as e:
+            raise rest_framework.exceptions.ValidationError(f'Query with slug "{value}" does not exist') from e
+        # Compile the saved query's filters into the search.
+        return compile_filters(query.query_dict, search, request=self.request)
+
+
+def compile_filters(filters, search, request=None):
+    """Compile a saved query's filters onto `search`. Raises if a referenced dataset is gone.
+
+    `filters` is the same query-param dict the images endpoint accepts (what the filter UI
+    produces): either flat params or a single ``filter_lanes`` JSON string, compiled through
+    the same backend, so saving a query is just freezing the current image search.
+    """
+    filters = filters or {}
+    filter_lanes_raw = filters.get('filter_lanes')
+    if filter_lanes_raw:
+        return OSFilterBackend().filter_search_lanes(request, search, None, filter_lanes_raw)
+    filterset = OSImageFilterSet(data=filters, search=search, request=request)
+    if not filterset.is_valid():
+        raise translate_validation(filterset.errors)
+    return filterset.filtered_search
 
 
 class OSFilterBackend(DjangoFilterBackend):
@@ -490,16 +649,199 @@ class OSFilterBackend(DjangoFilterBackend):
             "request": request,
         }
 
-    def get_filterset(self, request, search, view):
+    def get_filterset(self, request, search, view, exclude_field=None):
         kwargs = self.get_filterset_kwargs(request, search, view)
+        if exclude_field:
+            kwargs['data'] = self._exclude_params(kwargs['data'], exclude_field)
         return self.filterset_class(**kwargs)
 
-    def filter_search(self, request, search, view):
-        filterset = self.get_filterset(request, search, view)
+    def filter_search(self, request, search, view, exclude_field=None):
+        # Check for multi-lane filter param
+        filter_lanes_raw = request.query_params.get('filter_lanes')
+        if filter_lanes_raw:
+            return self.filter_search_lanes(request, search, view, filter_lanes_raw)
+
+        filterset = self.get_filterset(request, search, view, exclude_field=exclude_field)
 
         if not filterset.is_valid() and self.raise_exception:
             raise translate_validation(filterset.errors)
         return filterset.filtered_search
+
+    def filter_search_lanes(self, request, search, view, filter_lanes_raw):
+        """Apply multi-lane OR filtering with optional per-lane negation.
+
+        Each lane is a set of AND'd filters. Lanes are OR'd together.
+        A negated lane wraps its query in must_not.
+        """
+        try:
+            lanes_data = json.loads(filter_lanes_raw)
+        except (json.JSONDecodeError, TypeError) as e:
+            raise rest_framework.exceptions.ValidationError('Invalid filter_lanes JSON') from e
+
+        if not isinstance(lanes_data, list) or not lanes_data:
+            raise rest_framework.exceptions.ValidationError('filter_lanes must be a non-empty array')
+
+        lane_queries = []
+        for lane in lanes_data:
+            chips = lane.get('chips', [])
+            negated = lane.get('negated', False)
+
+            # Convert chips to flat query params that the existing filterset understands
+            lane_params = self._chips_to_query_params(chips)
+
+            # Create a fresh search and apply this lane's filters through the existing filterset
+            lane_search = Search()
+            lane_filterset = self.filterset_class(data=lane_params, search=lane_search, request=request)
+            if not lane_filterset.is_valid() and self.raise_exception:
+                raise translate_validation(lane_filterset.errors)
+            filtered_lane = lane_filterset.filtered_search
+
+            # Extract the query from the filtered search
+            lane_query = filtered_lane.to_dict().get('query', {'match_all': {}})
+            q = Q(lane_query)
+
+            if negated:
+                q = Q('bool', must_not=[q])
+
+            lane_queries.append(q)
+
+        # Combine lanes with OR (should + minimum_should_match=1)
+        combined = Q('bool', should=[q for q in lane_queries], minimum_should_match=1)
+        return search.filter(combined)
+
+    @staticmethod
+    def _chips_to_query_params(chips):
+        """Convert a list of chip dicts {field, operator, value} to flat query params
+        matching the existing OSImageFilterSet parameter format."""
+        from backend.api.images.filters import DATE_FIELDS, NUMERIC_FIELDS
+
+        params = {}
+        # Group chips by field
+        by_field = {}
+        for chip in chips:
+            field = chip.get('field', '')
+            by_field.setdefault(field, []).append(chip)
+
+        for field, field_chips in by_field.items():
+            if field == 'source':
+                eq = [c['value'] for c in field_chips if c.get('operator') == 'eq']
+                ne = [c['value'] for c in field_chips if c.get('operator') == 'ne']
+                if eq:
+                    params['sources'] = ','.join(eq)
+                if ne:
+                    params['sources__ne'] = ','.join(ne)
+            elif field == 'tag':
+                eq = [c['value'] for c in field_chips if c.get('operator') == 'eq']
+                ne = [c['value'] for c in field_chips if c.get('operator') == 'ne']
+                if eq:
+                    params['tags'] = ','.join(eq)
+                if ne:
+                    params['tags__ne'] = ','.join(ne)
+            elif field == 'dataset':
+                eq = [c['value'] for c in field_chips if c.get('operator') == 'eq']
+                ne = [c['value'] for c in field_chips if c.get('operator') == 'ne']
+                if eq:
+                    params['datasets'] = ','.join(eq)
+                if ne:
+                    params['datasets__ne'] = ','.join(ne)
+            elif field == 'latent':
+                eq = [c['value'] for c in field_chips if c.get('operator') == 'eq']
+                ne = [c['value'] for c in field_chips if c.get('operator') == 'ne']
+                if eq:
+                    params['has_latents'] = ','.join(eq)
+                if ne:
+                    params['lacks_latents'] = ','.join(ne)
+            elif field == 'duplicate_state':
+                params['duplicate_state'] = field_chips[0]['value']
+            elif field == 'aspect_ratio_fraction':
+                params['aspect_ratio_fraction'] = field_chips[0]['value']
+            elif field in NUMERIC_FIELDS:
+                for chip in field_chips:
+                    op = chip.get('operator', 'eq')
+                    if op == 'eq':
+                        params[field] = chip['value']
+                    else:
+                        params[f'{field}__{op}'] = chip['value']
+            elif field in DATE_FIELDS:
+                for chip in field_chips:
+                    op = chip.get('operator', 'gte')
+                    params[f'{field}__{op}'] = chip['value']
+            elif field.startswith('attr:'):
+                attr_name = field[5:]
+                for chip in field_chips:
+                    op = chip.get('operator', 'eq')
+                    if op == 'exists':
+                        existing = params.get('has_attributes', '').split(',') if params.get('has_attributes') else []
+                        existing.append(attr_name)
+                        params['has_attributes'] = ','.join(filter(None, existing))
+                    elif op == 'not_exists':
+                        existing = (
+                            params.get('lacks_attributes', '').split(',') if params.get('lacks_attributes') else []
+                        )
+                        existing.append(attr_name)
+                        params['lacks_attributes'] = ','.join(filter(None, existing))
+                    else:
+                        parts = params.get('attributes', '').split(',') if params.get('attributes') else []
+                        if op == 'eq':
+                            parts.append(f'{attr_name}:{chip["value"]}')
+                        else:
+                            parts.append(f'{attr_name}__{op}:{chip["value"]}')
+                        params['attributes'] = ','.join(filter(None, parts))
+            elif field == 'has_attributes':
+                params['has_attributes'] = ','.join(c['value'] for c in field_chips)
+            elif field == 'lacks_attributes':
+                params['lacks_attributes'] = ','.join(c['value'] for c in field_chips)
+
+        return params
+
+    @staticmethod
+    def _exclude_params(params, exclude_field):
+        """Remove filter params for a given logical field so faceted counts exclude the field's own filters."""
+        # Map logical field names to the query param prefixes they use
+        field_param_map = {
+            'source': ['sources', 'sources__ne', 'source', 'source__empty'],
+            'tag': ['tags', 'tags__ne', 'tags__all', 'tags__ne_all', 'tags__empty'],
+            'tags': ['tags', 'tags__ne', 'tags__all', 'tags__ne_all', 'tags__empty'],
+            'dataset': ['datasets', 'datasets__ne', 'datasets__all', 'datasets__ne_all', 'datasets__empty'],
+            'datasets': ['datasets', 'datasets__ne', 'datasets__all', 'datasets__ne_all', 'datasets__empty'],
+            'duplicate_state': ['duplicate_state'],
+            'aspect_ratio_fraction': ['aspect_ratio_fraction', 'aspect_ratio_fraction__empty'],
+        }
+        exclude_keys = set()
+        if exclude_field in field_param_map:
+            exclude_keys.update(field_param_map[exclude_field])
+        elif exclude_field in NUMERIC_FIELDS:
+            exclude_keys.add(exclude_field)
+            for op in ['gt', 'gte', 'lt', 'lte', 'ne']:
+                exclude_keys.add(f'{exclude_field}__{op}')
+        elif exclude_field in DATE_FIELDS:
+            for op in RANGE_OPS:
+                exclude_keys.add(f'{exclude_field}__{op}')
+        elif exclude_field.startswith('attr:'):
+            # Attribute filters are packed in the 'attributes', 'has_attributes', 'lacks_attributes' params
+            # We need to filter out the specific attribute from the comma-separated values
+            attr_name = exclude_field[5:]
+            filtered = {}
+            for key, value in params.items():
+                if key == 'attributes':
+                    parts = [p for p in value.split(',') if p.split(':')[0].split('__')[0] != attr_name]
+                    if parts:
+                        filtered[key] = ','.join(parts)
+                    continue
+                if key in ('has_attributes', 'lacks_attributes'):
+                    parts = [p for p in value.split(',') if p != attr_name]
+                    if parts:
+                        filtered[key] = ','.join(parts)
+                    continue
+                filtered[key] = value
+            return filtered
+        elif exclude_field == 'latent':
+            exclude_keys.update(['has_latents', 'lacks_latents'])
+
+        if not exclude_keys:
+            return params
+
+        return {k: v for k, v in params.items() if k not in exclude_keys}
 
 
 def os_image_filter_params():
@@ -552,5 +894,35 @@ def os_image_filter_params():
         )
 
         parameters.append(parameter)
+
+    # Add generic numeric/date range filter params
+    for field in sorted(NUMERIC_FIELDS):
+        parameters.append(
+            OpenApiParameter(
+                name=field,
+                type=build_basic_type(OpenApiTypes.NUMBER),
+                location=OpenApiParameter.QUERY,
+                description=f'Exact match for {field}.',
+            )
+        )
+        for op in ['gt', 'gte', 'lt', 'lte', 'ne']:
+            parameters.append(
+                OpenApiParameter(
+                    name=f'{field}__{op}',
+                    type=build_basic_type(OpenApiTypes.NUMBER),
+                    location=OpenApiParameter.QUERY,
+                    description=f'{field} {op}.',
+                )
+            )
+    for field in sorted(DATE_FIELDS):
+        for op in sorted(RANGE_OPS):
+            parameters.append(
+                OpenApiParameter(
+                    name=f'{field}__{op}',
+                    type=build_basic_type(OpenApiTypes.DATETIME),
+                    location=OpenApiParameter.QUERY,
+                    description=f'{field} {op}.',
+                )
+            )
 
     return parameters

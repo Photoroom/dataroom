@@ -11,6 +11,13 @@ class OverwriteStorage(FileSystemStorage):
     File system storage that overwrites the file if it already exists.
     """
 
+    def url(self, name, parameters=None, expire=None, http_method=None):
+        """Match the S3 backend's signature so callers can pass ``expire`` uniformly.
+
+        Filesystem URLs have no signed expiry, so the S3-only arguments are ignored.
+        """
+        return super().url(name)
+
     def get_alternative_name(self, file_root, file_ext):
         """
         Return the filename as is.

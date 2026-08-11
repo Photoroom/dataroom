@@ -7,76 +7,71 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.13.0,<4"
-dynamic = ["dependencies"]
+dependencies = [
+    "django[argon2]>=5.0.7,<6",
+    "djangorestframework>=3.15.2,<4",
+    "whitenoise[brotli]>=6.2.0,<7",
+    "django-allauth>=0.58.2,<0.59",
+    "django-annoying>=0.10.6,<0.11",
+    "django-environ>=0.10.0,<0.11",
+    "django-extensions>=3.1.5,<4",
+    "django-model-utils>=4.2.0,<5",
+    "boto3>=1.26.51,<2",
+    "django-storages>=1.13.2,<2",
+    "uvicorn>=0.20.0,<0.21",
+    "gunicorn>=20.1.0,<21",
+    "pillow>=10.1.0,<11",
+    "django-vite>=2.0.2,<3",
+    "django-jinja>=2.10.2,<3",
+    "heroicons[jinja]>=2.11.0,<3",
+    "psycopg2>=2.9.6,<3",
+    "django-admin-shortcuts>=3.0.1,<4",
+    "httpx>=0.28.0,<1",
+    "pgvector>=0.2.3,<0.3",
+    "django-filter>=23.4,<24",
+    "ddtrace>=2.11.4,<3",
+    "drf-spectacular>=0.26.5,<0.27",
+    "numpy>=1.26.2,<2",
+    "flask>=3.0.1,<4",
+    "flask-httpauth>=4.8.0,<5",
+    "aioboto3>=12.2.0,<13",
+    "cryptography==41.0.7",
+    "jsonschema>=4.21.1,<5",
+    "aws-requests-auth>=0.4.3,<0.5",
+    "requests-aws4auth>=1.2.3,<2",
+    "opensearch-py>=2.5.0,<3",
+    "gevent>=24.2.1,<25",
+    "dask[distributed]>=2024.9.0,<2025",
+    "onnxruntime>=1.16,<2",
+    "regex>=2024.0.0",
+    "bokeh>=3.5.2,<4",
+]
 
-[tool.poetry]
-package-mode = false
+[dependency-groups]
+test = [
+    "pytest>=7.2.1,<8",
+    "pytest-asyncio>=0.21.1,<0.22",
+    "pytest-mock>=3.14.0,<4",
+    "freezegun>=1.2.2,<2",
+    "pytest-django>=4.5.2,<5",
+    "pytest-playwright>=0.3.0,<0.4",
+    "pytest-xdist>=3,<4",
+]
+dev = [
+    "black>=22.12.0,<23",
+    "ruff>=0.5.4,<0.6",
+    "flake8-django>=1.1.5,<2",
+    "flake8>=5,<6",
+    "django-debug-toolbar>=5.2.0,<6",
+    "pre-commit>=2.17.0,<3",
+]
+develop = [
+    "jupyter>=1.0.0,<2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.13.0,<4"
-django = {extras = ["argon2"], version = "^5.0.7"}
-djangorestframework = "^3.15.2"
-whitenoise = {extras = ["brotli"], version = "^6.2.0"}
-django-allauth = "^0.58.2"
-django-annoying = "^0.10.6"
-django-environ = "^0.10.0"
-django-extensions = "^3.1.5"
-django-model-utils = "^4.2.0"
-boto3 = "^1.26.51"
-django-storages = "^1.13.2"
-uvicorn = "^0.20.0"
-gunicorn = "^20.1.0"
-Pillow = "^10.1.0"
-django-vite = "^2.0.2"
-django-jinja = "^2.10.2"
-heroicons = {extras = ["jinja"], version = "^2.11.0"}
-psycopg2 = "^2.9.6"
-django-admin-shortcuts = "^3.0.1"
-httpx = ">=0.28.0,<1"
-pgvector = "^0.2.3"
-django-filter = "^23.4"
-ddtrace = "^2.11.4"
-drf-spectacular = "^0.26.5"
-pytest-asyncio = "^0.21.1"
-numpy = "^1.26.2"
-mosaicml-streaming = "^0.7.1"
-flask = "^3.0.1"
-flask-httpauth = "^4.8.0"
-aioboto3 = "^12.2.0"
-cryptography = "41.0.7"
-jsonschema = "^4.21.1"
-aws-requests-auth = "^0.4.3"
-requests-aws4auth = "^1.2.3"
-opensearch-py = "^2.5.0"
-umap-learn = "^0.5.6"
-gevent = {extras = ["greenlet"], version = "^24.2.1"}
-dask = {extras = ["distributed"], version = "^2024.9.0"}
-bokeh = "^3.5.2"
-pytest-mock = "^3.14.0"
-
-[tool.poetry.group.test.dependencies]
-pytest = "^7.2.1"
-freezegun = "^1.2.2"
-pytest-django = "^4.5.2"
-pytest-playwright = "^0.3.0"
-
-[tool.poetry.group.dev.dependencies]
-black = "^22.12.0"
-ruff = "^0.5.4"
-flake8-django = "^1.1.5"
-flake8 = "^5"
-django-debug-toolbar = "^5.2.0"
-pre-commit = "^2.17.0"
-factory-boy = "^3.2.1"
-
-
-
-[tool.poetry.group.develop.dependencies]
-jupyter = "^1.0.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+# This is an application, not an installable package — don't try to build/install the root.
+package = false
 
 
 [tool.pytest.ini_options]

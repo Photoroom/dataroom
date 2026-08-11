@@ -139,9 +139,7 @@ export const SettingsPage: React.FC = function () {
         <p className="text-sm opacity-70 mb-1">API Tokens</p>
         <div className="flex flex-col gap-2">
           {isLoadingTokens && <LoaderSkeleton className="h-10" />}
-          {tokens?.results.map(token => (
-            <TokenForm key={token.id} token={token} refetchTokens={refetchTokens} />
-          ))}
+          {tokens?.results.map(token => <TokenForm key={token.id} token={token} refetchTokens={refetchTokens} />)}
           <button
             type="button"
             className="btn btn-outline btn-sm shrink-0 self-start"

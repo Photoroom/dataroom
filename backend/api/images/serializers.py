@@ -55,6 +55,9 @@ class OSImageSerializer(serializers.Serializer):
     duplicate_state = serializers.IntegerField(required=False, allow_null=True)
     related_images = RelatedOSImagesField(required=False, allow_null=True)
     datasets = OSImageDatasetsField(required=False, allow_null=True)
+    # Group membership denorm. Each entry is ``<role>::<type>::<uuid>``.
+    # See backend/dataroom/groups/os_sync.py for the encoding.
+    memberships = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
 
 
 @extend_schema_serializer(many=False)
@@ -216,7 +219,22 @@ class SimilarToOSImageParamsSerializer(RetrieveOSImageParamsSerializer):
     pass
 
 
-class OSImageCreateSerializer(serializers.Serializer):
+class RejectDatasetsWriteMixin:
+    """``datasets`` is derived from dataset membership, not writable on the image.
+
+    Without this, DRF would silently drop the key and answer 200, so a caller still
+    sending it would never learn its datasets were ignored.
+    """
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and 'datasets' in data:
+            raise serializers.ValidationError(
+                {'datasets': 'Read-only: derived from dataset membership. Use /api/datasets/ to add images.'}
+            )
+        return super().to_internal_value(data)
+
+
+class OSImageCreateSerializer(RejectDatasetsWriteMixin, serializers.Serializer):
     id = ImageIdField(required=False)
     image = serializers.ImageField(write_only=True, required=False)
     image_url = serializers.URLField(write_only=True, required=False)
@@ -224,7 +242,6 @@ class OSImageCreateSerializer(serializers.Serializer):
     attributes = AttributesJSONField(required=False)
     tags = serializers.ListField(child=TagNameField(), required=False, allow_empty=True, write_only=True)
     related_images = RelatedOSImagesField(required=False, allow_null=True)
-    datasets = OSImageDatasetsField(required=False, allow_null=True)
 
     def validate(self, data):
         image = data.get('image', None)
@@ -257,16 +274,6 @@ class OSImageCreateSerializer(serializers.Serializer):
 
         return data
 
-    def validate_datasets(self, value):
-        valid_datasets = self.context.get('valid_datasets', [])
-        invalid_datasets = []
-        for dataset in value:
-            if dataset not in valid_datasets:
-                invalid_datasets.append(dataset)
-        if invalid_datasets:
-            raise serializers.ValidationError(f'Invalid datasets: {", ".join(invalid_datasets)}')
-        return value
-
     def update(self, instance, validated_data):
         raise NotImplementedError('This serializer should not be used for updates')
 
@@ -281,7 +288,6 @@ class OSImageCreateSerializer(serializers.Serializer):
             image_hash=validated_data['image_hash'],
             original_url=validated_data['original_url'],
             related_images=validated_data.get('related_images', None),
-            datasets=validated_data.get('datasets', None),
         )
         os_image.create(bulk_index=bulk_index)
         return os_image
@@ -292,25 +298,13 @@ class ImageLatentCreateSerializer(serializers.Serializer):
     file = serializers.FileField(required=True)
 
 
-class OSImageUpdateSerializer(serializers.Serializer):
+class OSImageUpdateSerializer(RejectDatasetsWriteMixin, serializers.Serializer):
     source = serializers.CharField(required=False, allow_null=False, allow_blank=False)
     attributes = AttributesJSONField(required=False)
     latents = ImageLatentCreateSerializer(required=False, many=True)
     tags = serializers.ListField(child=TagNameField(), required=False, allow_empty=True, write_only=True)
     coca_embedding = CocaEmbeddingVectorField(required=False, allow_null=False)
     related_images = RelatedOSImagesField(required=False, allow_null=True)
-    datasets = OSImageDatasetsField(required=False, allow_null=True)
-
-    def validate_datasets(self, value):
-        valid_datasets = self.context.get('valid_datasets', [])
-        value = list(set(value))
-        invalid_datasets = []
-        for dataset in value:
-            if dataset not in valid_datasets:
-                invalid_datasets.append(dataset)
-        if invalid_datasets:
-            raise serializers.ValidationError(f'Invalid datasets: {", ".join(invalid_datasets)}')
-        return value
 
 
 class OSImageBulkUpdateSerializer(OSImageUpdateSerializer):
@@ -367,3 +361,24 @@ class OSImageAggregateSerializer(serializers.Serializer):
 class OSImageBucketSerializer(serializers.Serializer):
     field = OSImageOrAttributeField(required=True)
     size = serializers.IntegerField(required=True, min_value=1, max_value=1000)
+
+
+class OSImageFacetsParamsSerializer(serializers.Serializer):
+    fields = serializers.CharField(
+        required=True,
+        help_text='Comma-separated list of fields to get facets for (e.g. source,tags,width).',
+    )
+    exclude_field = serializers.CharField(
+        required=False,
+        help_text='Field to exclude from filtering (for self-exclusion in faceted search).',
+    )
+
+
+class OSImageCatalogParamsSerializer(serializers.Serializer):
+    fields = serializers.CharField(
+        required=True,
+        help_text=(
+            'Comma-separated list of discrete fields to fetch the complete value catalog for '
+            '(e.g. source,tags,datasets). Ignores active filters and returns every distinct value.'
+        ),
+    )

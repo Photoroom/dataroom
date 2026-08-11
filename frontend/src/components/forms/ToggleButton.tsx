@@ -28,7 +28,7 @@ export function ToggleButton({ onChange, label = "", checked = false, disabled =
           "w-9 h-5 peer-focus:outline-hidden rounded-full peer",
           "bg-black/25 dark:bg-white/25",
           "after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all",
-          "peer-checked:after:translate-x-full peer-checked:bg-teal-400 dark:peer-checked:bg-teal-500"
+          "peer-checked:after:translate-x-full peer-checked:bg-brand-400 dark:peer-checked:bg-brand-500"
         )}
       ></div>
       {label && <span className="ms-2 text-xs whitespace-nowrap">{label}</span>}

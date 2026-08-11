@@ -1,13 +1,38 @@
+# Python
 *.pyc
 *.pyo
-/.env
-/.venv
-**/node_modules
+__pycache__
+.venv
+
+# Django artifacts (generated at build time)
 /backend/static_built
 /backend/static_collected
 /backend/media
+
+# JS tooling outputs/installs (not needed in any stage)
+/node_modules
+/orval
+
+# Not needed by any build stage
+eslint.config.js
+
+# Local config
 /backend/config/local.py
+
+# Dev/ops tooling (not needed at runtime)
+terraform/
+notebooks/
+tests/
+compose/
+docker-compose.yml
+migration/
+
+# Misc / large files
+*.md
 .DS_Store
 .editorconfig
-terraform
-notebooks
+.git
+.github
+
+# Client package
+dataroom_client/

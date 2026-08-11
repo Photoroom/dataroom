@@ -3,7 +3,7 @@
 
 {% block content %}
 
-	<h1 style="background: {% if cluster_health.status == 'red' %}#c64040{% elif cluster_health.status == 'yellow' %}#d5a642{% else %}#6ca358{% endif %}; color: white; padding: 20px; text-align: center;">{{ cluster_health.cluster_name }}</h1>
+	<h1 style="background: {% if cluster_health.status == 'red' %}#c64040{% elif cluster_health.status == 'yellow' %}#d5a642{% else %}#6ca358{% endif %}; color: white; padding: 20px; text-align: center;">{{ cluster_health.cluster_name }} <span style="font-weight: normal; font-size: 14px;">v{{ cluster_version }}</span></h1>
 
 	<div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px; margin-bottom: 40px;">
 		{% for node_name, node in node_stats.nodes.items %}
@@ -70,6 +70,10 @@
 			<table>
 				<tbody>
 					<tr>
+						<td>Index name</td>
+						<td><pre style="margin:0;">{{ images_index_name }}</pre></td>
+					</tr>
+					<tr>
 						<td>Doc count</td>
 						<td><pre style="margin:0;">{{ images_stats.primaries.docs.count|intcomma }}</pre></td>
 					</tr>
@@ -101,6 +105,36 @@
 					</tr>
 				</tbody>
 			</table>
+		</div>
+
+		<div>
+			<h1>Shards</h1>
+			<div style="max-height: 400px; overflow-y: auto;">
+				<table>
+					<thead style="position: sticky; top: 0; background: #fff;">
+						<tr>
+							<th>Shard</th>
+							<th>Type</th>
+							<th>State</th>
+							<th>Docs</th>
+							<th>Size</th>
+							<th>Segments</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for shard in images_shard_details %}
+							<tr>
+								<td><pre style="margin:0;">{{ shard.shard }}</pre></td>
+								<td><pre style="margin:0;">{% if shard.primary %}primary{% else %}replica{% endif %}</pre></td>
+								<td><pre style="margin:0;">{{ shard.state }}</pre></td>
+								<td><pre style="margin:0;">{{ shard.docs|intcomma }}</pre></td>
+								<td><pre style="margin:0;">{{ shard.size_in_bytes|filesizeformat }}</pre></td>
+								<td><pre style="margin:0;">{{ shard.segments }}</pre></td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
 		</div>
 
 		<div>

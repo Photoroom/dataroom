@@ -116,6 +116,7 @@ async def test_get_images_all_fields(DataRoom, os_image):
         'duplicate_state',
         'related_images',
         'datasets',
+        'memberships',
     ]
 
 
@@ -605,9 +606,27 @@ async def test_filter_images_by_tags(DataRoom, image_logo, image_logo_alt, image
 @pytest.mark.asyncio
 @pytest.mark.django_db
 async def test_filter_images_by_tags_that_doesnt_exist(DataRoom, image_logo):
-    with pytest.raises(DataRoomError) as excinfo:
-        images = await DataRoom.get_images(tags=['wrong'])
-    assert "One or more tags do not exist: 'wrong'" in str(excinfo.value)
+    # Filtering by a tag that isn't on any image matches nothing (no error), like `sources`.
+    # Tags are matched directly against OpenSearch and are NOT validated against the Tag
+    # table, which — synced from a capped aggregation — can't list every tag in the index.
+    images = await DataRoom.get_images(tags=['wrong'])
+    assert len(images) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db
+async def test_filter_images_by_tag_without_tag_table_row(DataRoom, image_logo):
+    # Regression: a tag present on an image in OpenSearch but with no Postgres Tag row
+    # (e.g. a rare per-product tag evicted/never synced because cardinality exceeds the
+    # stats aggregation cap) must still be filterable. Previously this 400ed with
+    # "One or more tags do not exist".
+    image_logo.tags = ['product_47brand_com_11591462740']
+    await sync_to_async(image_logo.save)(fields=['tags'])
+    # Drop every Tag row to simulate the tag existing only in the index, not in Postgres.
+    await sync_to_async(Tag.objects.all().delete)()
+
+    images = await DataRoom.get_images(tags=['product_47brand_com_11591462740'])
+    assert [i['id'] for i in images] == [image_logo.id]
 
 
 @pytest.mark.asyncio

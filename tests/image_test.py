@@ -90,7 +90,7 @@ def test_update_coca_embedding(image_logo, mocker):
 
     # update the embedding
     image_logo.update_coca_embedding(author='test@example.com')
-    image_logo = OSImage.objects.get(id=image_logo.id)
+    image_logo = OSImage.objects.get(id=image_logo.id, fields=['coca_embedding'])
 
     assert image_logo.coca_embedding_exists is True
     assert image_logo.coca_embedding_author == 'test@example.com'

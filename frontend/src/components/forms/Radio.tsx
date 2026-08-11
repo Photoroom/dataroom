@@ -19,7 +19,7 @@ export const Radio: React.FC<RadioProps> = ({ label, checked, onChange }) => {
           "flex items-center justify-center",
           "border-black/30 dark:border-white/30",
           checked
-            ? "bg-teal-400 border-transparent dark:bg-teal-500 dark:border-transparent"
+            ? "bg-brand-400 border-transparent dark:bg-brand-500 dark:border-transparent"
             : "bg-white dark:bg-black/20"
         )}
       >

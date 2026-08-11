@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { OSImage } from "../api/client.schemas";
 import { useImagesRetrieve } from "../api/client";
-import { URLS } from "../urls";
 import toast from "react-hot-toast";
 
 interface ImageDrawerContextType {
   isDrawerOpen: boolean;
   closeDrawer: () => void;
+  openDrawer: () => void;
   imageId: string;
   image: OSImage | undefined;
   refetchImage: () => void;
@@ -16,36 +16,41 @@ interface ImageDrawerContextType {
 const ImageDrawerContext = createContext<ImageDrawerContextType | undefined>(undefined);
 
 export function ImageDrawerProvider({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
   const urlParams = useParams();
-  const [searchParams] = useSearchParams();
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
 
-  // the drawer is open if we are on the image detail page
+  // Whether we're on an image detail URL
+  const hasImageId = !!urlParams.imageId;
+
+  // Local visibility toggle (not URL-driven)
+  const [isDrawerVisible, setIsDrawerVisible] = useState(true);
+
+  // Auto-open when imageId changes (user clicked a different image)
+  const prevImageIdRef = useRef(urlParams.imageId);
   useEffect(() => {
-    setIsDrawerOpen(urlParams.imageId !== undefined);
-  }, [urlParams]);
+    if (urlParams.imageId && urlParams.imageId !== prevImageIdRef.current) {
+      setIsDrawerVisible(true);
+    }
+    prevImageIdRef.current = urlParams.imageId;
+  }, [urlParams.imageId]);
 
-  // to close the drawer we just navigate to the image list
+  // Drawer is open if we have an imageId AND it's not locally hidden
+  const isDrawerOpen = hasImageId && isDrawerVisible;
+
   const closeDrawer = () => {
-    navigate(URLS.IMAGE_LIST(searchParams));
+    setIsDrawerVisible(false);
+  };
+
+  const openDrawer = () => {
+    setIsDrawerVisible(true);
   };
 
   // -------------------- Image detail state --------------------
-  const [imageId, setImageId] = useState<string>(urlParams.imageId || "");
-  const [image, setImage] = useState<OSImage | undefined>(undefined);
-
-  useEffect(() => {
-    if (urlParams.imageId && urlParams.imageId !== imageId) {
-      setImageId(urlParams.imageId);
-      setImage(undefined);
-    }
-  }, [urlParams, imageId]);
+  const imageId = urlParams.imageId || "";
 
   // -------------------- Fetching image detail --------------------
-  const detailIncludeFields = "thumbnail,image,latents,attributes,tags,related_images";
+  const detailIncludeFields = "thumbnail,image,latents,attributes,tags,related_images,datasets";
   const {
-    data: imageDetailResponse,
+    data: image,
     isError: isLoadingImageDetailError,
     refetch: refetchImage,
   } = useImagesRetrieve(imageId, {
@@ -58,18 +63,13 @@ export function ImageDrawerProvider({ children }: { children: React.ReactNode })
     }
   }, [isLoadingImageDetailError]);
 
-  useEffect(() => {
-    if (imageDetailResponse) {
-      setImage(imageDetailResponse);
-    }
-  }, [imageDetailResponse]);
-
   // -------------------- Return --------------------
   return (
     <ImageDrawerContext.Provider
       value={{
         isDrawerOpen,
         closeDrawer,
+        openDrawer,
         imageId,
         image,
         refetchImage,

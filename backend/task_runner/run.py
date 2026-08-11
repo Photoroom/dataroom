@@ -11,6 +11,8 @@ from backend.task_runner.tasks import (
     delete_duplicates_task,
     delete_marked_for_deletion_task,
     mark_duplicates_task,
+    reconcile_datasets_task,
+    reconcile_memberships_task,
     # update_coca_embedding_task,
     update_count_stats_task,
     update_queue_stats_task,
@@ -243,6 +245,8 @@ def main():
     periodic_tasks = [
         update_count_stats_task,
         update_queue_stats_task,
+        reconcile_memberships_task,
+        reconcile_datasets_task,
     ]
     queued_tasks = [
         delete_duplicates_task,

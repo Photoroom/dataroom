@@ -32,10 +32,12 @@ def cache_response(func):
                     headers={'Cache-Control': f'cached, max-age={cache_ttl}'},
                 )
             else:
-                # cache the whole request
+                # cache the whole request (successful responses only — caching an error
+                # body would replay it with a 200 status on subsequent hits)
                 response = func(self, request, *args, **kwargs)
-                cache.set(cache_key, response.data, timeout=cache_ttl)
-                response['Cache-Control'] = f'max-age={cache_ttl}'
+                if response.status_code == 200:
+                    cache.set(cache_key, response.data, timeout=cache_ttl)
+                    response['Cache-Control'] = f'max-age={cache_ttl}'
                 return response
 
         return func(self, request, *args, **kwargs)

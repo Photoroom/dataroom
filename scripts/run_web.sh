@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-exec gunicorn backend.config.wsgi --workers ${NUM_GUNICORN_WORKERS:-2} $( [[ "$DJANGO_DEBUG" = "True" ]] && printf %s '--reload') --timeout 120 --bind 0.0.0.0:8000 --max-requests 1000 --max-requests-jitter 50 --backlog 0 -k gevent --reuse-port --worker-connections=5
+exec gunicorn backend.config.wsgi --workers ${NUM_GUNICORN_WORKERS:-2} $( [[ "$DJANGO_DEBUG" = "True" ]] && printf %s '--reload') --timeout 120 --bind 0.0.0.0:8000 --max-requests 1000 --max-requests-jitter 50 --backlog 0 -k gevent --reuse-port --worker-connections=100
 
 # Tip: to debug slow imports, run `ddtrace-run python -X importtime -m gunicorn backend.config.wsgi --workers [etc]``

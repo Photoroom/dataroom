@@ -1,6 +1,10 @@
 import React from "react";
+import { DatasetDetail } from "../../components/dataset/DatasetDetail";
 
 export const DatasetsDrawerContent: React.FC = function () {
-  // -------------------- Render --------------------
-  return <div className="flex flex-col gap-6 px-4 pt-4 pb-6 md:max-w-drawer text-sm">Datasets drawer</div>;
+  return (
+    <div className="md:max-w-drawer">
+      <DatasetDetail />
+    </div>
+  );
 };

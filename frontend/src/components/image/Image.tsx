@@ -28,7 +28,16 @@ export const Image: React.FC<ImageProps> = ({ image, selectMode, isSelected, onT
   };
 
   const handleClickSimilar = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("random");
+    newParams.delete("prefix_length");
+    newParams.delete("num_prefixes");
+    newParams.delete("similarText");
+    newParams.delete("similarFile");
+    newParams.delete("similarVector");
+    newParams.set("similar", image.id);
     setModeSimilarImage(image.id);
+    navigate(URLS.IMAGE_DETAIL(image.id, newParams));
   };
 
   const props = (() => {
@@ -79,11 +88,23 @@ export const Image: React.FC<ImageProps> = ({ image, selectMode, isSelected, onT
   }, [attempt, idx, src, sources.length]);
 
   return (
-    <button {...props} className={twMerge("w-full aspect-square rounded-lg bg-black/8 dark:bg-white/8", className)}>
+    <button
+      {...props}
+      data-image-id={image.id}
+      className={twMerge("w-full aspect-square rounded-lg bg-black/8 dark:bg-white/8", className)}
+    >
       <div className={twMerge("group block w-full h-full cursor-pointer relative")}>
-        {selectMode && isSelected && (
-          <span className="absolute z-10 bottom-2 left-2 flex items-center justify-center rounded-full w-[28px] h-[28px] shadow-sm bg-teal-400">
-            <CheckIcon className="size-4 text-white block" />
+        {/* Selected indicator: bold when in select mode, subtle when not */}
+        {isSelected && (
+          <span
+            className={twMerge(
+              "absolute z-10 bottom-2 left-2 flex items-center justify-center rounded-full w-[28px] h-[28px]",
+              selectMode ? "bg-brand-400 shadow-sm" : "bg-black/30 dark:bg-white/20"
+            )}
+          >
+            <CheckIcon
+              className={twMerge("size-4 block", selectMode ? "text-white" : "text-white/70 dark:text-white/50")}
+            />
           </span>
         )}
         <img
@@ -95,7 +116,7 @@ export const Image: React.FC<ImageProps> = ({ image, selectMode, isSelected, onT
           onError={onError}
           className={twMerge(
             "block w-full h-full rounded-lg object-cover shadow-none group-hover:shadow-md group-hover:scale-[102%] transition-all",
-            selectMode && isSelected ? "ring-4 ring-teal-400" : ""
+            selectMode && isSelected ? "ring-4 ring-brand-400" : ""
           )}
         />
         <span>

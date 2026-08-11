@@ -7,6 +7,7 @@ from urllib.parse import urlparse, urlunparse
 
 from ddtrace import tracer
 from django.conf import settings
+from django.db.models import Count
 from django.http import Http404
 from drf_spectacular.utils import extend_schema
 from httpx import HTTPError
@@ -19,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from backend.api.cache import cache_response
+from backend.api.groups.serializers import GroupSerializer, batch_cover_thumbnails
 from backend.api.images.filters import InvalidFilterError, OSFilterBackend, os_image_filter_params
 from backend.api.images.serializers import (
     CountSerializer,
@@ -32,7 +34,9 @@ from backend.api.images.serializers import (
     OSImageAggregateSerializer,
     OSImageBucketSerializer,
     OSImageBulkUpdateSerializer,
+    OSImageCatalogParamsSerializer,
     OSImageCreateSerializer,
+    OSImageFacetsParamsSerializer,
     OSImageSegmentationSerializer,
     OSImageSerializer,
     OSImageUpdateSerializer,
@@ -47,10 +51,11 @@ from backend.api.images.serializers import (
     SimilarToVectorSerializer,
 )
 from backend.dataroom.exceptions import LatentTypeValidationError, MissingEmbeddingError, SaveConflictError
-from backend.dataroom.models.attributes import AttributesFieldNotFoundError
-from backend.dataroom.models.dataset import Dataset
-from backend.dataroom.models.os_image import OSAttributes, OSImage, OSLatent, OSLatents
+from backend.dataroom.models.attributes import AttributesFieldNotFoundError, AttributesSchema
+from backend.dataroom.models.group import Membership
+from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSFieldType, OSImage, OSLatent, OSLatents
 from backend.dataroom.opensearch import OS, OSBulkIndex
+from backend.dataroom.utils.coca_text_encoder import encode_text as encode_text_local
 from backend.dataroom.utils.fetch_embedding import fetch_coca_embedding_for_text
 from backend.dataroom.utils.ramsam import get_ramsam_segmentation
 from backend.dataroom.utils.vectors import normalize_similarity, normalize_vector
@@ -70,9 +75,6 @@ class ImageViewSet(ViewSet):
     def _check_api_writes_disabled(self):
         if settings.API_DISABLE_IMAGE_WRITES:
             raise exceptions.PermissionDenied('Writes are temporarily disabled')
-
-    def _prefetch_valid_datasets(self):
-        self.valid_datasets = [ds.slug_version for ds in Dataset.objects.filter(is_frozen=False)]
 
     def _get_partition_params(self):
         partitions_count = self.request.query_params.get(self.partitions_count_param)
@@ -131,10 +133,10 @@ class ImageViewSet(ViewSet):
     def get_search(self, fields=None, search_after=None, sort=None):
         return OSImage.objects.search(fields=fields, search_after=search_after, sort=sort)
 
-    def filter_search(self, search):
+    def filter_search(self, search, exclude_field=None):
         backend = OSFilterBackend()
         try:
-            search = backend.filter_search(self.request, search, self)
+            search = backend.filter_search(self.request, search, self, exclude_field=exclude_field)
         except InvalidFilterError as e:
             raise exceptions.ValidationError(str(e)) from e
         except AttributesFieldNotFoundError as e:
@@ -294,11 +296,231 @@ class ImageViewSet(ViewSet):
         result = search.execute()
         return Response(result.aggregations.agg.to_dict())
 
+    # Map logical field names → OpenSearch field names for terms aggregations
+    # Accepts both frontend keys (tag, dataset) and backend keys (tags, datasets)
+    TERMS_FIELDS = {
+        'source': 'source',
+        'tag': 'tags',
+        'tags': 'tags',
+        'dataset': 'datasets',
+        'datasets': 'datasets',
+        'duplicate_state': 'duplicate_state',
+        'aspect_ratio_fraction': 'aspect_ratio_fraction',
+        'latent': None,  # latent types are separate OS fields; not supported via terms
+    }
+    NUMERIC_FACET_FIELDS = {'width', 'height', 'short_edge', 'pixel_count', 'aspect_ratio'}
+    # Terms-agg size for facets. Matches the catalog safety cap so filter-aware counts cover
+    # every value the catalog can expose: a terms agg only does extra work up to the ACTUAL
+    # cardinality, so a high ceiling costs nothing at typical scale, and at size >= cardinality
+    # the per-shard top-N truncation (and its doc_count_error) disappears entirely.
+    FACET_TERMS_SIZE = 50000
+
+    @tracer.wrap()
+    @extend_schema(parameters=[*os_image_filter_params()])
+    @action(detail=False, methods=['get'])
+    def facets(self, request):
+        """Return aggregation facets for one or more fields. Applies all current filters,
+        optionally excluding one field (for self-exclusion in faceted search)."""
+        params_ser = OSImageFacetsParamsSerializer(data=request.query_params)
+        params_ser.is_valid(raise_exception=True)
+
+        requested = [f.strip() for f in params_ser.validated_data['fields'].split(',') if f.strip()]
+        exclude_field = params_ser.validated_data.get('exclude_field')
+
+        search = self.filter_search(self.get_search(sort='_doc'), exclude_field=exclude_field)
+        search = search.extra(size=0)
+
+        for field in requested:
+            agg_name = field.replace(':', '_')  # safe aggregation key (attr:foo → attr_foo)
+            if field in self.TERMS_FIELDS:
+                os_field = self.TERMS_FIELDS[field]
+                if os_field is not None:
+                    search.aggs.bucket(name=agg_name, agg_type='terms', field=os_field, size=self.FACET_TERMS_SIZE)
+            elif field in self.NUMERIC_FACET_FIELDS:
+                search.aggs.bucket(name=f'{agg_name}_stats', agg_type='stats', field=field)
+            elif field.startswith('attr:'):
+                attr_name = field[5:]
+                os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+                attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True)
+                if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
+                    # Numeric attributes: use stats aggregation (same as NUMERIC_FACET_FIELDS)
+                    search.aggs.bucket(name=f'{agg_name}_stats', agg_type='stats', field=attr.os_name)
+                else:
+                    search.aggs.bucket(
+                        name=agg_name, agg_type='terms', field=attr.os_name_keyword, size=self.FACET_TERMS_SIZE
+                    )
+
+        try:
+            result = search.execute()
+        except RequestError as e:
+            if 'not supported for aggregation' in str(e):
+                return Response(
+                    {'error': 'One or more fields are not supported for aggregation'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            raise
+
+        # Collect all fields that used stats aggregation (builtins + numeric attrs)
+        # so we can compute histograms and build the right response shape for them.
+        numeric_agg_fields = {}  # field -> os_field_name for histogram
+        for field in requested:
+            if field in self.NUMERIC_FACET_FIELDS:
+                numeric_agg_fields[field] = field
+            elif field.startswith('attr:'):
+                attr_name = field[5:]
+                os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+                if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
+                    attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True)
+                    numeric_agg_fields[field] = attr.os_name
+
+        # For numeric fields, compute histogram interval from stats and run a second query
+        hist_data = {}  # field -> list of buckets
+        if numeric_agg_fields:
+            hist_search = self.filter_search(self.get_search(sort='_doc'), exclude_field=exclude_field)
+            hist_search = hist_search.extra(size=0)
+            hist_agg_names = []
+            for field, os_field in numeric_agg_fields.items():
+                agg_name = field.replace(':', '_')
+                stats_agg = result.aggregations[f'{agg_name}_stats']
+                if stats_agg.count and stats_agg.max is not None and stats_agg.min is not None:
+                    data_range = stats_agg.max - stats_agg.min
+                    if data_range == 0:
+                        interval = 1
+                    else:
+                        interval = data_range / 100
+                        if interval >= 10:
+                            interval = round(interval / 10) * 10 or 10
+                        elif interval >= 1:
+                            interval = round(interval)
+                        # For small ranges (e.g. 0-1), keep fractional intervals
+                        # rounded to 2 significant digits
+                        elif interval >= 0.01:
+                            interval = round(interval, 2)
+                        else:
+                            interval = float(f'{interval:.2g}')
+                    hist_name = f'{agg_name}_hist'
+                    hist_search.aggs.bucket(
+                        name=hist_name,
+                        agg_type='histogram',
+                        field=os_field,
+                        interval=interval,
+                    )
+                    hist_agg_names.append((field, hist_name))
+            if hist_agg_names:
+                hist_result = hist_search.execute()
+                for field, hist_name in hist_agg_names:
+                    hist_data[field] = hist_result.aggregations[hist_name].to_dict().get('buckets', [])
+
+        response = {}
+        for field in requested:
+            agg_name = field.replace(':', '_')
+            if field in numeric_agg_fields:
+                stats_agg = result.aggregations[f'{agg_name}_stats']
+                response[field] = {
+                    'stats': stats_agg.to_dict(),
+                    'histogram': hist_data.get(field, []),
+                }
+            else:
+                agg = result.aggregations.get(agg_name)
+                if agg:
+                    response[field] = {'buckets': agg.to_dict().get('buckets', [])}
+                else:
+                    response[field] = {'buckets': []}
+
+        return Response(response)
+
+    # Discrete fields whose distinct-value set can grow unbounded. The frontend loads
+    # these once via `field_catalog`, caches them client-side, and filters locally —
+    # instead of only ever seeing the top-N most frequent values (as `facets` returns).
+    CATALOG_FIELDS = {'source', 'tag', 'tags', 'dataset', 'datasets'}
+    # Composite-agg page size. Every page re-runs the aggregation over the whole index, so
+    # total cost scales with ceil(cardinality / page_size) full passes — at prod's tag
+    # cardinality (tens of thousands), 1000/page meant dozens of passes and ~80s responses.
+    # Matching the catalog cap makes a single pass cover everything the catalog can return
+    # (pagination only remains as the mechanism to detect hitting the cap); the ceiling is
+    # OpenSearch's search.max_buckets (65,535), and `facets` already requests 50k buckets.
+    _CATALOG_PAGE_SIZE = FACET_TERMS_SIZE
+    # Safety backstop so a pathological cardinality can't build an unbounded response.
+    # At the expected scale (hundreds to low thousands) this is never reached. Kept equal
+    # to FACET_TERMS_SIZE so filter-aware facet counts cover the whole catalog.
+    _CATALOG_MAX_BUCKETS = FACET_TERMS_SIZE
+
+    def _catalog_os_field(self, field):
+        """Resolve a requested catalog field to its OpenSearch keyword field, or None if unsupported."""
+        if field in self.CATALOG_FIELDS:
+            return self.TERMS_FIELDS[field]
+        if field.startswith('attr:'):
+            attr_name = field[5:]
+            os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+            if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
+                return None  # numeric attributes are ranges, not term catalogs
+            attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True)
+            return attr.os_name_keyword
+        return None
+
+    def _collect_catalog_values(self, os_field):
+        """Collect every distinct value of ``os_field`` with its global doc count.
+
+        Delegates to ``counts_by_field_exhaustive`` (a paged composite aggregation), so the
+        result is complete and exact at any cardinality — unlike a plain ``terms`` agg with
+        a capped ``size``, which shard-truncates. Returns ``(values, truncated)``.
+        """
+        counts, truncated = OSImage.objects.counts_by_field_exhaustive(
+            os_field, page_size=self._CATALOG_PAGE_SIZE, max_buckets=self._CATALOG_MAX_BUCKETS
+        )
+        return [{'key': key, 'doc_count': count} for key, count in counts.items()], truncated
+
+    @cache_response
+    @tracer.wrap()
+    @extend_schema(parameters=[OSImageCatalogParamsSerializer])
+    @action(detail=False, methods=['get'])
+    def field_catalog(self, request):
+        """Return the complete, unfiltered value catalog for one or more discrete fields.
+
+        Unlike ``facets``, this ignores the active user filters: it returns the full universe
+        of values (with global counts) plus the total distinct count, so the frontend can cache
+        it for a long time and filter locally. Response shape per field::
+
+            {"source": {"values": [{"key": "...", "doc_count": N}, ...], "total": M, "truncated": false}}
+        """
+        params_ser = OSImageCatalogParamsSerializer(data=request.query_params)
+        params_ser.is_valid(raise_exception=True)
+        requested = [f.strip() for f in params_ser.validated_data['fields'].split(',') if f.strip()]
+
+        # The manager search keeps the standard visibility filters (e.g. not-deleted), but no
+        # user filter chips and no partitioning apply — the catalog is the global value universe.
+        response = {}
+        for field in requested:
+            os_field = self._catalog_os_field(field)
+            if os_field is None:
+                return Response(
+                    {'fields': [f'Field "{field}" does not support a value catalog.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                values, truncated = self._collect_catalog_values(os_field)
+            except RequestError as e:
+                if 'not supported for aggregation' in str(e):
+                    return Response(
+                        {'fields': [f'Field "{field}" is not supported for aggregation.']},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                raise
+            if truncated:
+                logger.warning(
+                    'field_catalog truncated for field "%s" at %d values (cap=%d)',
+                    field,
+                    len(values),
+                    self._CATALOG_MAX_BUCKETS,
+                )
+            response[field] = {'values': values, 'total': len(values), 'truncated': truncated}
+
+        return Response(response)
+
     @tracer.wrap()
     @extend_schema(request=OSImageCreateSerializer)
     def create(self, request, *args, **kwargs):
         self._check_api_writes_disabled()
-        self._prefetch_valid_datasets()
 
         if 'multipart/form-data' in request.content_type and request.data.get('json_0', None):
             return self._handle_bulk_create(request, *args, **kwargs)
@@ -326,7 +548,7 @@ class ImageViewSet(ViewSet):
                     data['image'] = image_file
 
                 # validate serializer
-                serializer = OSImageCreateSerializer(data=data, context={'valid_datasets': self.valid_datasets})
+                serializer = OSImageCreateSerializer(data=data)
                 serializer.is_valid(raise_exception=True)
                 serializers.append(serializer)
 
@@ -425,7 +647,7 @@ class ImageViewSet(ViewSet):
 
         if not instance:
             # new image, create it
-            serializer = OSImageCreateSerializer(data=data, context={'valid_datasets': self.valid_datasets})
+            serializer = OSImageCreateSerializer(data=data)
             serializer.is_valid(raise_exception=True)
             image_file = serializer.validated_data['image']
 
@@ -486,7 +708,6 @@ class ImageViewSet(ViewSet):
     @extend_schema(request=OSImageUpdateSerializer)
     def update(self, request, *args, **kwargs):
         self._check_api_writes_disabled()
-        self._prefetch_valid_datasets()
 
         if 'multipart/form-data' in request.content_type:
             return self._update_image_with_latents(request=request)
@@ -543,7 +764,7 @@ class ImageViewSet(ViewSet):
     @tracer.wrap()
     def _update_image(self, data):
         # validate serializer
-        serializer = OSImageUpdateSerializer(data=data, context={'valid_datasets': self.valid_datasets})
+        serializer = OSImageUpdateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
         # validate all latents are unique
@@ -576,8 +797,6 @@ class ImageViewSet(ViewSet):
                 image.coca_embedding_exists = value is not None
                 image.coca_embedding_vector = value
                 image.coca_embedding_author = self.request.user.email
-            elif field == 'datasets':
-                image.datasets.update(value)
             else:
                 setattr(image, field, value)
 
@@ -594,7 +813,6 @@ class ImageViewSet(ViewSet):
     @action(detail=False, methods=['put'])
     def bulk_update(self, request, *args, **kwargs):
         self._check_api_writes_disabled()
-        self._prefetch_valid_datasets()
 
         if not isinstance(request.data, list):
             return Response({'error': "Expected a list of images to update"}, status=status.HTTP_400_BAD_REQUEST)
@@ -605,7 +823,7 @@ class ImageViewSet(ViewSet):
         # validate each image update
         valid_serializers = []
         for item in request.data:
-            serializer = OSImageBulkUpdateSerializer(data=item, context={'valid_datasets': self.valid_datasets})
+            serializer = OSImageBulkUpdateSerializer(data=item)
             serializer.is_valid(raise_exception=True)
             valid_serializers.append(serializer)
 
@@ -836,7 +1054,7 @@ class ImageViewSet(ViewSet):
     @tracer.wrap()
     @action(detail=True, methods=['post'])
     def similarity(self, request, pk=None):
-        image = self.get_object()
+        image = self.get_object(fields=['coca_embedding'])
 
         image_id_serializer = ImageIdSerializer(data=self.request.data)
         image_id_serializer.is_valid(raise_exception=True)
@@ -1061,11 +1279,19 @@ class ImageViewSet(ViewSet):
         number = serializer.validated_data['number']
 
         error_response = Response({'error': 'Unable to fetch embedding for text'}, status=status.HTTP_400_BAD_REQUEST)
+
+        vector = None
         try:
-            vector = fetch_coca_embedding_for_text(text)
-        except HTTPError as e:
-            logger.error(e)
-            return error_response
+            vector = encode_text_local(text)
+        except Exception:
+            logger.warning("Local text encoder failed, falling back to API", exc_info=True)
+
+        if not vector:
+            try:
+                vector = fetch_coca_embedding_for_text(text)
+            except HTTPError as e:
+                logger.error(e)
+                return error_response
 
         if not vector:
             return error_response
@@ -1133,6 +1359,44 @@ class ImageViewSet(ViewSet):
                 "captions": captions,
                 "segments": segments,
             }
+        )
+
+    @action(detail=True, methods=['get'])
+    def groups(self, request, pk=None):
+        """List all (non-deleted) groups this image is a member of, hydrated.
+
+        Response: [{group: {...}, role, metadata}]
+        """
+        memberships = list(
+            Membership.objects.filter(image_id=pk, deleted_at__isnull=True, group__deleted_at__isnull=True)
+            .select_related('group', 'group__author', 'group__type')
+            .order_by('date_created')
+        )
+        # Bulk-fetch image_count for every group in the response in one query
+        # so GroupSerializer.get_image_count doesn't fire one COUNT per group.
+        group_ids = {m.group_id for m in memberships}
+        counts = dict(
+            Membership.objects.filter(group_id__in=group_ids, deleted_at__isnull=True)
+            .values('group_id')
+            .annotate(c=Count('image_id', distinct=True))
+            .values_list('group_id', 'c')
+        )
+        for m in memberships:
+            m.group.image_count = counts.get(m.group_id, 0)
+
+        # Batch the cover thumbnails for every group in one OS query (else the
+        # serializer fetches one cover per group).
+        cover_thumbnails = batch_cover_thumbnails([m.group for m in memberships])
+
+        return Response(
+            [
+                {
+                    'group': GroupSerializer(m.group, context={'cover_thumbnails': cover_thumbnails}).data,
+                    'role': m.role,
+                    'metadata': m.metadata,
+                }
+                for m in memberships
+            ]
         )
 
     @extend_schema(parameters=[RetrieveOSImageParamsSerializer], responses=RelatedOSImageListSerializer)

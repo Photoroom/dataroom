@@ -13,7 +13,7 @@ DJANGO_VITE_DEV_MODE = True
 # SECURITY
 # ------------------------------------------------------------------------------
 INTERNAL_IPS = ["127.0.0.1"]
-SECRET_KEY = "django-insecure-scw8vaop+fgn=l6*)q2j92hc77*c@0j76xn0a$wu4%70&!wb8^"
+SECRET_KEY = "django-insecure-scw8vaop+fgn=l6*)q2j92hc77*c@0j76xn0awu4%70&!wb8^"
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-ssl-redirect

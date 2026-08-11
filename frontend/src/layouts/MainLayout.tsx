@@ -1,34 +1,46 @@
 import { ReactNode } from "react";
 import { ImageListDataProvider } from "../context/ImageListDataContext";
-import { SidebarProvider, SidebarActiveNav } from "../context/SidebarContext";
-import { Drawer } from "./drawer/Drawer";
-import { Sidebar } from "./sidebar/Sidebar";
 import { CollapsibleProvider } from "../context/CollapsibleContext";
 import { ImageDrawerProvider } from "../context/ImageDrawerContext";
+import { GroupDrawerProvider } from "../context/GroupDrawerContext";
 import { DatasetDrawerProvider } from "../context/DatasetDrawerContext";
+import { SidebarConfigProvider } from "./images/filter/useSidebarConfig";
+import { TopBar } from "./TopBar";
+import { Drawer } from "./drawer/Drawer";
 
 interface MainLayoutProps {
-  sidebarActiveNav: SidebarActiveNav;
-  sidebarContent: ReactNode;
-  drawerContent: ReactNode;
-  useDrawer: () => { isDrawerOpen: boolean; closeDrawer: () => void };
+  toolbarContent?: ReactNode;
+  rightActions?: ReactNode;
+  drawerContent?: ReactNode;
+  useDrawer?: () => { isDrawerOpen: boolean; closeDrawer: () => void };
+  sidebarContent?: ReactNode;
   children: ReactNode;
 }
 
-export function MainLayout({ sidebarActiveNav, sidebarContent, drawerContent, useDrawer, children }: MainLayoutProps) {
+export function MainLayout({
+  toolbarContent,
+  rightActions,
+  drawerContent,
+  useDrawer,
+  sidebarContent,
+  children,
+}: MainLayoutProps) {
   return (
-    <ImageListDataProvider>
-      <SidebarProvider initialActiveNav={sidebarActiveNav}>
+    <SidebarConfigProvider>
+      <ImageListDataProvider>
         <ImageDrawerProvider>
-          <DatasetDrawerProvider>
-            <CollapsibleProvider>
-              <Sidebar>{sidebarContent}</Sidebar>
-              {children}
-              <Drawer useDrawer={useDrawer}>{drawerContent}</Drawer>
-            </CollapsibleProvider>
-          </DatasetDrawerProvider>
+          <GroupDrawerProvider>
+            <DatasetDrawerProvider>
+              <CollapsibleProvider>
+                <TopBar rightActions={rightActions}>{toolbarContent}</TopBar>
+                {sidebarContent}
+                {children}
+                {drawerContent && useDrawer && <Drawer useDrawer={useDrawer}>{drawerContent}</Drawer>}
+              </CollapsibleProvider>
+            </DatasetDrawerProvider>
+          </GroupDrawerProvider>
         </ImageDrawerProvider>
-      </SidebarProvider>
-    </ImageListDataProvider>
+      </ImageListDataProvider>
+    </SidebarConfigProvider>
   );
 }

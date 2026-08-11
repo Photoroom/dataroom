@@ -11,8 +11,9 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 from pathlib import Path
 
 from ddtrace import tracer
-from ddtrace.filters import FilterRequestsOnUrl
 from environ import Env
+
+from backend.config.ddtrace_filters import FilterRequestsOnUrl
 
 env = Env()
 
@@ -422,11 +423,9 @@ SPECTACULAR_SETTINGS = {
 # Datadog
 # ------------------------------------------------------------------------------
 tracer.configure(
-    settings={
-        'FILTERS': [
-            FilterRequestsOnUrl(r'http://.*/_health/$'),
-        ],
-    }
+    trace_processors=[
+        FilterRequestsOnUrl(r'http://.*/_health/$'),
+    ]
 )
 
 
@@ -479,6 +478,35 @@ AWS_OPEN_SEARCH_URL = env('AWS_OPEN_SEARCH_URL', default='http://localhost:9200'
 OPENSEARCH_IMAGES_INDEX_NAME = env('OPENSEARCH_IMAGES_INDEX_NAME', default='images')
 OPENSEARCH_DEFAULT_REFRESH = True
 
+# How the image-denorm writes are chunked, and how many chunks go out at once.
+#
+# A scripted update rewrites the whole document, so where the index keeps its vectors on
+# s3vector one document costs an S3 round trip (~100ms measured on dev) rather than ~0.1ms.
+# 1000 docs in one request is ~100s: past the client's 60s timeout AND past gunicorn's 120s
+# worker timeout, which SIGKILLs the gevent worker and every request sharing it. 250 keeps a
+# request inside both.
+#
+# Concurrency defaults to 1 because it was measured to do NOTHING on s3vector - the cluster
+# serializes the S3 fetches regardless of how many requests are in flight:
+#
+#   bulk 1 x 480 docs                42.29 ms/doc
+#   bulk 4 x 120 concurrent          42.38 ms/doc   (1.00x)
+#   update_by_query slices=48        42.77 ms/doc   (1.1x, on 48 shards)
+#
+# It is left configurable only so the finding can be re-checked cheaply if the cluster or
+# the engine changes. Raising it just adds concurrent S3 pressure for no gain.
+OPENSEARCH_DENORM_BULK_CHUNK = env.int('OPENSEARCH_DENORM_BULK_CHUNK', default=50)
+OPENSEARCH_DENORM_BULK_CONCURRENCY = env.int('OPENSEARCH_DENORM_BULK_CONCURRENCY', default=20)
+
+OPENSEARCH_KNN_ENGINE = env('OPENSEARCH_KNN_ENGINE', default='faiss')
+
+# group_ids/memberships are keyword on a freshly-created index, so exact-match queries
+# target them directly. Some existing indexes had these dynamically mapped as text +
+# .keyword; set this to ".keyword" on those environments so term/terms/prefix queries
+# hit the keyword sub-field instead of the analyzed text field (which never matches the
+# encoded type::uuid / role::type::uuid ids). See backend/dataroom/groups/os_fields.py.
+OPENSEARCH_GROUP_FIELD_SUFFIX = env('OPENSEARCH_GROUP_FIELD_SUFFIX', default='')
+
 OPENSEARCH_SNAPSHOT_REPOSITORY_NAME = env('OPENSEARCH_SNAPSHOT_REPOSITORY_NAME', default=None)
 OPENSEARCH_SNAPSHOT_NAME = env('OPENSEARCH_SNAPSHOT_NAME', default=None)
 OPENSEARCH_SNAPSHOT_BUCKET = env('OPENSEARCH_SNAPSHOT_BUCKET', default=None)
@@ -497,3 +525,7 @@ FETCH_EMBEDDING_FOR_TEXT_HEADER_VALUE = env('FETCH_EMBEDDING_FOR_TEXT_HEADER_VAL
 FETCH_TEXT_FOR_IMAGE_API_URL = env('FETCH_TEXT_FOR_IMAGE_API_URL', default=None)
 FETCH_TEXT_FOR_IMAGE_HEADER_KEY = env('FETCH_TEXT_FOR_IMAGE_HEADER_KEY', default=None)
 FETCH_TEXT_FOR_IMAGE_HEADER_VALUE = env('FETCH_TEXT_FOR_IMAGE_HEADER_VALUE', default=None)
+
+# Local CoCa text encoder (ONNX) — set to model path to use local inference
+# instead of the external FETCH_EMBEDDING_FOR_TEXT API.
+COCA_TEXT_ENCODER_MODEL_PATH = env('COCA_TEXT_ENCODER_MODEL_PATH', default=None)

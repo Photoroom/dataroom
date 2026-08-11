@@ -2,10 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react'
 import FastGlob from "fast-glob";
 
-
 export default defineConfig(({ command }) => ({
   base: "/static/", // same as STATIC_URL
   root: './frontend/',
+  define: {
+    __GIT_COMMIT__: JSON.stringify(process.env.GIT_COMMIT || 'dev'),
+    __GIT_REPO_URL__: JSON.stringify(process.env.GIT_REPO_URL || 'https://github.com'),
+  },
   build: {
     manifest: 'manifest.json', // generate a manifest.json in outDir
     rollupOptions: {

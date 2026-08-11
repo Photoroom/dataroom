@@ -1,279 +1,196 @@
+"""dataroom_client dataset methods, driven against a live server.
+
+Datasets collect Groups of one immutable GroupType, so every test here seeds a
+group type and adds real groups rather than loose images.
+"""
+
 import uuid
+
 import pytest
 from asgiref.sync import sync_to_async
+
+from backend.dataroom.datasets.single_image import SINGLE_IMAGE_TYPE, ensure_single_image_type
 from backend.dataroom.models.os_image import OSImage
+from backend.dataroom.opensearch import OS
 from dataroom_client import DataRoomError
-from dataroom_client.dataroom_client.client import DataRoomFile
+
+TYPE = 'zara_product'
+
+
+def _create_image(image_id: str):
+    image = OSImage(
+        id=image_id,
+        author='tester',
+        source='test',
+        image=f'images/{image_id}/original.png',
+        image_hash=f'sha256:{image_id}',
+        width=10,
+        height=10,
+        short_edge=10,
+        pixel_count=100,
+        aspect_ratio=1.0,
+        aspect_ratio_fraction='1:1',
+    )
+    image.create()
+    OS.client.indices.refresh(index=OSImage.INDEX)
+    return image
+
+
+async def _group(DataRoom, name=None):
+    group = await DataRoom.upsert_group(name=name or f'g_{uuid.uuid4().hex[:8]}', type=TYPE, metadata={})
+    return group['id']
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_create_dataset(DataRoom):
-    datasets = await DataRoom.get_datasets()
-    assert len(datasets) == 0
+@pytest.mark.django_db(transaction=True)
+async def test_create_get_list_dataset(DataRoom, seed_group_types):
+    assert await DataRoom.get_datasets() == []
 
-    # create dataset without description
-    dataset = await DataRoom.create_dataset(name='Test Dataset', slug='test')
-    assert dataset['name'] == 'Test Dataset'
-    assert dataset['slug'] == 'test'
-    assert dataset['version'] == 1
-    assert dataset['description'] == ''
+    dataset = await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    assert (dataset['slug'], dataset['version'], dataset['type']) == ('spring', 1, TYPE)
 
-    # create dataset with description
-    dataset = await DataRoom.create_dataset(name='Test Dataset 2', slug='test', description='Test description')
-    assert dataset['name'] == 'Test Dataset 2'
-    assert dataset['slug'] == 'test'
-    assert dataset['version'] == 2  # version is incremented
-    assert dataset['description'] == 'Test description'
+    # The version auto-increments per slug.
+    second = await DataRoom.create_dataset(name='Spring 2', slug='spring', type=TYPE, description='next')
+    assert second['version'] == 2
+    assert second['description'] == 'next'
 
-    # get dataset
-    dataset = await DataRoom.get_dataset(slug_version='test/2')
-    assert dataset['name'] == 'Test Dataset 2'
-    assert dataset['slug'] == 'test'
-    assert dataset['version'] == 2
-    assert dataset['description'] == 'Test description'
+    fetched = await DataRoom.get_dataset('spring/2')
+    assert fetched['name'] == 'Spring 2'
+
+    # Listing returns every version, newest first within a slug.
+    listed = await DataRoom.get_datasets(slug='spring')
+    assert [d['slug_version'] for d in listed] == ['spring/2', 'spring/1']
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_create_dataset_with_invalid_slug(DataRoom):
-    # too long slug
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.create_dataset(name='Test Dataset', slug='a' * 101)
-    assert 'Ensure this field has no more than 100 characters' in str(excinfo.value)
+@pytest.mark.django_db(transaction=True)
+async def test_update_dataset_cannot_change_type(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
 
-    # slug with spaces
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.create_dataset(name='Test Dataset', slug='test dataset')
-    assert 'Enter a valid \\"slug\\"' in str(excinfo.value)
+    updated = await DataRoom.update_dataset('spring/1', name='Renamed', description='desc')
+    assert (updated['name'], updated['description']) == ('Renamed', 'desc')
 
-    # slug with invalid characters
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.create_dataset(name='Test Dataset', slug='test@dataset')
-    assert 'Enter a valid \\"slug\\"' in str(excinfo.value)
+    # type is immutable once set; the server rejects a different one.
+    with pytest.raises(DataRoomError):
+        await DataRoom.update_dataset('spring/1', type='recolor_dresses')
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_create_image_with_datasets(DataRoom, tests_path):
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.create_dataset(name='Test', slug='test')
-    
-    image_file = DataRoomFile.from_path(tests_path / 'images/logo.png')
+@pytest.mark.django_db(transaction=True)
+async def test_group_membership_add_remove_revive(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    group_id = await _group(DataRoom)
 
-    image_id = str(uuid.uuid4())
-    datasets = ['test/1', 'test/2']
-    image = await DataRoom.create_image(image_id=image_id, image_file=image_file, source='test', datasets=datasets)
-    instance = await sync_to_async(OSImage.objects.get)(id=image['id'])
+    await DataRoom.add_dataset_groups('spring/1', [group_id])
+    members = await DataRoom.get_groups(dataset='spring/1')
+    assert len(members) == 1
 
-    assert instance.id == image_id
-    assert instance.datasets.datasets == datasets
-    
-    image = await DataRoom.get_image(image_id, all_fields=True)
-    assert image['datasets'] == datasets
-    
+    # Removal soft-deletes the membership.
+    await DataRoom.remove_dataset_groups('spring/1', [group_id])
+    assert len(await DataRoom.get_groups(dataset='spring/1')) == 0
 
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_create_image_with_datasets_invalid(DataRoom, tests_path):
-    await DataRoom.create_dataset(name='Test', slug='test')
-
-    image_file = DataRoomFile.from_path(tests_path / 'images/logo.png')
-    image_id = str(uuid.uuid4())
-
-    datasets = ['wrong',]
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.create_image(image_id=image_id, image_file=image_file, source='test', datasets=datasets)
-    assert 'Invalid datasets: wrong' in str(excinfo.value)
-
-    datasets = ['doesnotexist/1',]
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.create_image(image_id=image_id, image_file=image_file, source='test', datasets=datasets)
-    assert 'Invalid datasets: doesnotexist/1' in str(excinfo.value)
-    
-
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_create_image_with_datasets_frozen(DataRoom, tests_path):
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.freeze_dataset(slug_version='test/1')
-
-    image_file = DataRoomFile.from_path(tests_path / 'images/logo.png')
-    image_id = str(uuid.uuid4())
-
-    datasets = ['test/1', 'test/2']
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.create_image(image_id=image_id, image_file=image_file, source='test', datasets=datasets)
-    assert 'Invalid datasets: test/1' in str(excinfo.value)
-
-    # did not create image
-    with pytest.raises(OSImage.DoesNotExist) as excinfo:
-        existing = await sync_to_async(OSImage.objects.get)(id=image_id)
-    assert 'not found' in str(excinfo.value)
+    # Re-adding revives the same membership rather than creating a second one.
+    await DataRoom.add_dataset_groups('spring/1', [group_id])
+    assert len(await DataRoom.get_groups(dataset='spring/1')) == 1
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_update_image_with_datasets(DataRoom, image_logo, image_logo_alt):
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.create_dataset(name='Test', slug='test')
-    
-    datasets = ['test/1', 'test/2']
-    image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    image = await DataRoom.get_image(image_logo.id, all_fields=True)
-    assert image['datasets'] == datasets
+@pytest.mark.django_db(transaction=True)
+async def test_add_group_of_wrong_type_is_rejected(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
 
-    # updates will merge with existing list of datasets
-    datasets = ['test/1', 'test/3']
-    image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    image = await DataRoom.get_image(image_logo.id, all_fields=True)
-    assert image['datasets'] == ['test/1', 'test/2', 'test/3']
+    # A second type, with no required roles so the group can be created empty.
+    await DataRoom.create_group_type(name='swatch', metadata_schema={'type': 'object', 'additionalProperties': True})
+    other = await DataRoom.upsert_group(name=f'o_{uuid.uuid4().hex[:8]}', type='swatch', metadata={})
 
-    # will do nothing
-    datasets = []
-    image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    image = await DataRoom.get_image(image_logo.id, all_fields=True)
-    assert image['datasets'] == ['test/1', 'test/2', 'test/3']
-
-    # will do nothing
-    datasets = None
-    image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    image = await DataRoom.get_image(image_logo.id, all_fields=True)
-    assert image['datasets'] == ['test/1', 'test/2', 'test/3']
-    
-
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_update_image_with_datasets_invalid(DataRoom, tests_path, image_logo):
-    await DataRoom.create_dataset(name='Test', slug='test')
-
-    datasets = ['wrong',]
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    assert 'Invalid datasets: wrong' in str(excinfo.value)
-
-    datasets = ['doesnotexist/1',]
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    assert 'Invalid datasets: doesnotexist/1' in str(excinfo.value)
-    
-
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_update_image_with_datasets_frozen(DataRoom, tests_path, image_logo):
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.freeze_dataset(slug_version='test/1')
-
-    datasets = ['test/1', 'test/2']
-    with pytest.raises(DataRoomError) as excinfo:
-        image = await DataRoom.update_image(image_id=image_logo.id, datasets=datasets)
-    assert 'Invalid datasets: test/1' in str(excinfo.value)
-
-    # did not update image
-    instance = await sync_to_async(OSImage.objects.get)(id=image_logo.id)
-    assert instance.datasets.datasets == []
+    with pytest.raises(DataRoomError):
+        await DataRoom.add_dataset_groups('spring/1', [other['id']])
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_dataset_add_images(DataRoom, image_logo, image_girl, image_perfume):
-    # create dataset
-    dataset = await DataRoom.create_dataset(name='Test', slug='test')
+@pytest.mark.django_db(transaction=True)
+async def test_freeze_blocks_membership_changes(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    group_id = await _group(DataRoom)
 
-    # add images to dataset
-    response = await DataRoom.dataset_add_images(slug_version='test/1', image_ids=[image_logo.id, image_girl.id])
-    assert response['updated_count'] == 2
+    await DataRoom.freeze_dataset('spring/1')
+    with pytest.raises(DataRoomError):
+        await DataRoom.add_dataset_groups('spring/1', [group_id])
 
-    # verify images were added
-    images = await DataRoom.get_images(datasets=['test/1'])
-    assert [img['id'] for img in images] == [image_girl.id, image_logo.id]
-
-
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_dataset_remove_images(DataRoom, image_logo, image_girl, image_perfume):
-    # create dataset
-    dataset = await DataRoom.create_dataset(name='Test', slug='test')
-
-    # add images to dataset
-    await DataRoom.dataset_add_images(slug_version='test/1', image_ids=[image_logo.id, image_girl.id, image_perfume.id])
-
-    # remove some images
-    response = await DataRoom.dataset_remove_images(slug_version='test/1', image_ids=[image_logo.id, image_girl.id])
-    assert response['updated_count'] == 2
-
-    # verify images were removed
-    images = await DataRoom.get_images(datasets=['test/1'])
-    assert [img['id'] for img in images] == [image_perfume.id]
+    await DataRoom.unfreeze_dataset('spring/1')
+    await DataRoom.add_dataset_groups('spring/1', [group_id])
+    assert len(await DataRoom.get_groups(dataset='spring/1')) == 1
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_dataset_add_images_frozen(DataRoom, image_logo, image_girl, image_perfume):
-    # create dataset
-    dataset = await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.freeze_dataset(slug_version='test/1')
+@pytest.mark.django_db(transaction=True)
+async def test_copy_clones_members_and_inherits_type(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    group_id = await _group(DataRoom)
+    await DataRoom.add_dataset_groups('spring/1', [group_id])
 
-    # can't add images to frozen dataset
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.dataset_add_images(slug_version='test/1', image_ids=[image_logo.id, image_girl.id])
-    assert 'Dataset is frozen' in str(excinfo.value)
-
-
-@pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_dataset_remove_images_frozen(DataRoom, image_logo, image_girl, image_perfume):
-    # create dataset
-    dataset = await DataRoom.create_dataset(name='Test', slug='test')
-    await DataRoom.freeze_dataset(slug_version='test/1')
-
-    # can't remove images from frozen dataset
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.dataset_remove_images(slug_version='test/1', image_ids=[image_logo.id, image_girl.id])
-    assert 'Dataset is frozen' in str(excinfo.value)
+    copy = await DataRoom.copy_dataset('spring/1', name='Summer', slug='summer')
+    assert copy['type'] == TYPE
+    assert len(await DataRoom.get_groups(dataset=copy['slug_version'])) == 1
 
 
 @pytest.mark.asyncio
-@pytest.mark.django_db
-async def test_dataset_filter(DataRoom, image_logo, image_logo_alt, image_logo_small, image_girl, image_perfume):
-    # create datasets
-    dataset_logos = await DataRoom.create_dataset(name='Logos', slug='logos')
-    dataset_logos_alt = await DataRoom.create_dataset(name='Logos', slug='logos')
-    dataset_people = await DataRoom.create_dataset(name='People', slug='people')
-    dataset_objects = await DataRoom.create_dataset(name='Objects', slug='objects')
+@pytest.mark.django_db(transaction=True)
+async def test_add_dataset_images_wraps_each_image(DataRoom, seed_group_types):
+    # The single_image GroupType must exist before a single_image dataset can be created.
+    await sync_to_async(ensure_single_image_type)()
+    await DataRoom.create_dataset(name='Loose', slug='loose', type=SINGLE_IMAGE_TYPE)
 
-    # add images to dataset
-    await DataRoom.update_image(image_logo.id, datasets=['logos/1'])
-    await DataRoom.update_image(image_logo_small.id, datasets=['logos/1', 'logos/2'])
-    await DataRoom.update_image(image_logo_alt.id, datasets=['logos/2'])
+    image_ids = [uuid.uuid4().hex for _ in range(2)]
+    for image_id in image_ids:
+        await sync_to_async(_create_image)(image_id)
 
-    await DataRoom.update_image(image_girl.id, datasets=['people/1'])
+    result = await DataRoom.add_dataset_images('loose/1', image_ids)
+    assert result['updated_count'] == len(image_ids)
+    assert len(await DataRoom.get_groups(dataset='loose/1')) == len(image_ids)
 
-    # single dataset
-    images = await DataRoom.get_images(datasets=['objects/1'])
-    assert [img['id'] for img in images] == []
-    images = await DataRoom.get_images(datasets=['logos/1'])
-    assert [img['id'] for img in images] == [image_logo.id, image_logo_small.id]
+    # Idempotent: re-adding revives rather than duplicating.
+    again = await DataRoom.add_dataset_images('loose/1', image_ids)
+    assert again['updated_count'] == 0
+    assert len(await DataRoom.get_groups(dataset='loose/1')) == len(image_ids)
 
-    # match any dataset
-    images = await DataRoom.get_images(datasets=['logos/1', 'logos/2'])
-    assert [img['id'] for img in images] == [image_logo.id, image_logo_alt.id, image_logo_small.id]
 
-    # match all datasets
-    images = await DataRoom.get_images(datasets__all=['logos/1', 'logos/2'])
-    assert [img['id'] for img in images] == [image_logo_small.id]
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_delete_dataset(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    await DataRoom.delete_dataset('spring/1')
+    with pytest.raises(DataRoomError):
+        await DataRoom.get_dataset('spring/1')
 
-    # match not having any of the datasets
-    images = await DataRoom.get_images(datasets__ne=['logos/1', 'logos/2'])
-    assert [img['id'] for img in images] == [image_girl.id, image_perfume.id]
 
-    # match not having all of the datasets
-    images = await DataRoom.get_images(datasets__ne_all=['logos/1', 'logos/2'])
-    assert [img['id'] for img in images] == [image_girl.id, image_logo.id, image_logo_alt.id, image_perfume.id]
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_get_groups_expansion_via_dataset_filter(DataRoom, seed_group_types):
+    await DataRoom.create_dataset(name='Spring', slug='spring', type=TYPE)
+    group_id = await _group(DataRoom)
+    await DataRoom.add_dataset_groups('spring/1', [group_id])
 
-    # match empty datasets
-    images = await DataRoom.get_images(datasets__empty=True)
-    assert [img['id'] for img in images] == [image_perfume.id]
+    image_id = uuid.uuid4().hex
+    await sync_to_async(_create_image)(image_id)
+    await DataRoom.upsert_group(
+        group_id=group_id, name=f'g_{uuid.uuid4().hex[:8]}', type=TYPE, metadata={},
+        members=[{'image_id': image_id, 'role': 'onhang'}],
+    )
+
+    # Unexpanded: no roles array.
+    plain = await DataRoom.get_groups(dataset='spring/1')
+    assert 'roles' not in plain[0]
+
+    # Expanded: the members show up with their roles.
+    expanded = await DataRoom.get_groups(dataset='spring/1', include_roles=True)
+    roles = expanded[0]['roles']
+    assert [(r['image_id'], r['role']) for r in roles] == [(image_id, 'onhang')]
+
+    # return_roles narrows; a role nothing is assigned to yields an empty array.
+    narrowed = await DataRoom.get_groups(dataset='spring/1', return_roles=['front'])
+    assert narrowed[0]['roles'] == []
+
+    # group-level expansion: which datasets contain each group.
+    with_ds = await DataRoom.get_groups(dataset='spring/1', include_datasets=True)
+    assert with_ds[0]['datasets'] == ['spring/1']

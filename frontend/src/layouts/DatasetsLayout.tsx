@@ -1,15 +1,13 @@
 import { MainLayout } from "./MainLayout";
-import { DatasetsSidebarContent } from "./datasets/DatasetsSidebarContent";
+import { DatasetsToolbar } from "./datasets/DatasetsToolbar";
 import { DatasetsDrawerContent } from "./datasets/DatasetsDrawerContent";
-import { Outlet } from "react-router-dom";
 import { useDatasetDrawer } from "../context/DatasetDrawerContext";
-import { SidebarActiveNav } from "../context/SidebarContext";
+import { Outlet } from "react-router-dom";
 
 export function DatasetsLayout() {
   return (
     <MainLayout
-      sidebarActiveNav={SidebarActiveNav.DATASETS}
-      sidebarContent={<DatasetsSidebarContent />}
+      toolbarContent={<DatasetsToolbar />}
       drawerContent={<DatasetsDrawerContent />}
       useDrawer={useDatasetDrawer}
     >

@@ -27,6 +27,10 @@ from backend.dataroom.opensearch import OS, OSBulkIndex
 from backend.dataroom.utils.disable_storage_custom_domain import disable_storage_custom_domain
 from backend.dataroom.utils.fetch_embedding import fetch_coca_embedding, fetch_coca_embedding_async
 from backend.dataroom.utils.get_vector_for_image_file import get_vector_for_image_file
+from backend.dataroom.utils.stable_storage_url import (
+    STABLE_URL_VALID_SECONDS,
+    stable_signing_time,
+)
 from backend.dataroom.utils.vectors import normalize_similarity, normalize_vector
 
 logger = logging.getLogger('dataroom')
@@ -61,12 +65,17 @@ class OSLatent:
 
     @property
     def file_url(self):
-        return default_storage.url(self.file) if self.file else None
+        if not self.file:
+            return None
+        with stable_signing_time():
+            return default_storage.url(self.file, expire=STABLE_URL_VALID_SECONDS)
 
     @property
     def file_direct_url(self):
-        with disable_storage_custom_domain(default_storage):
-            return default_storage.url(self.file) if self.file else None
+        if not self.file:
+            return None
+        with stable_signing_time(), disable_storage_custom_domain(default_storage):
+            return default_storage.url(self.file, expire=STABLE_URL_VALID_SECONDS)
 
     @classmethod
     @tracer.wrap()
@@ -201,9 +210,12 @@ class OSAttribute:
         # validate the value
         if os_type == OSFieldType.BOOLEAN and value is not None:
             value = str(value).lower()
-            if value not in ['true', 'false']:
+            if value in ('true', '1'):
+                value = True
+            elif value in ('false', '0'):
+                value = False
+            else:
                 raise ValueError(f"Invalid boolean value: {value}")
-            value = value == 'true'
         elif os_type == OSFieldType.OBJECT and value is not None:
             # Validate that object values are valid JSON objects (dict)
             if not isinstance(value, dict):
@@ -486,6 +498,14 @@ class OSImageManager:
                 translated_fields.append(field)
         return list(set(translated_fields))
 
+    def _field_excludes(self, fields):
+        # With s3vector engine, including coca_embedding_vector in _source triggers an S3
+        # fetch per document — even for non-kNN queries. Always exclude it unless the caller
+        # explicitly requests the 'coca_embedding' field (e.g. for similarity search).
+        if fields and 'coca_embedding' in fields:
+            return None
+        return [OSImage.EMBEDDING_VECTOR_FIELD]
+
     def search(self, fields=None, search_after=None, sort=None, include_source=True):
         extra = dict(self._search_params)
         s = Search(using=OS.client, index=OSImage.INDEX, extra=extra)
@@ -500,7 +520,11 @@ class OSImageManager:
         if not include_source:
             s = s.source(False)
         elif fields:
-            s = s.source(includes=self._field_includes(fields))
+            # Always apply excludes even when includes are set: with the s3vector engine,
+            # _source_includes alone does NOT prevent the S3 fetch — only _source_excludes does.
+            s = s.source(includes=self._field_includes(fields), excludes=self._field_excludes(fields))
+        else:
+            s = s.source(excludes=self._field_excludes(fields))
 
         # pagination
         if search_after:
@@ -517,6 +541,40 @@ class OSImageManager:
         search.aggs.bucket('count', 'terms', field=field_name, order={"_count": order}, size=number)
         result = search.execute()
         return {doc['key']: doc['doc_count'] for doc in result.aggregations.count.to_dict()['buckets']}
+
+    def counts_by_field_exhaustive(self, field_name, page_size=50000, max_buckets=50000):
+        """Return every distinct value of ``field_name`` with its exact doc count.
+
+        Pages a composite aggregation (via ``after``), so the result is complete and exact at
+        any cardinality — unlike ``counts_by_field``, whose top-N terms agg truncates. Returns
+        ``(counts, truncated)``; ``truncated`` is True if ``max_buckets`` was reached and the
+        value universe is incomplete.
+
+        Every page re-runs the aggregation over the whole index, so keep ``page_size`` large:
+        total cost is ceil(cardinality / page_size) full passes. The ceiling is OpenSearch's
+        ``search.max_buckets`` (65,535 per request); at the 50k default a single pass covers
+        everything up to ``max_buckets``.
+        """
+        counts = {}
+        after = None
+        truncated = False
+        while True:
+            search = self.search(sort='_doc', include_source=False).extra(size=0)
+            composite = {'sources': [{'v': {'terms': {'field': field_name}}}], 'size': page_size}
+            if after is not None:
+                composite['after'] = after
+            search.aggs.bucket('counts', 'composite', **composite)
+            agg = search.execute().aggregations.counts.to_dict()
+            buckets = agg.get('buckets', [])
+            for bucket in buckets:
+                counts[bucket['key']['v']] = bucket['doc_count']
+            after = agg.get('after_key')
+            if len(buckets) < page_size or not after:
+                break
+            if len(counts) >= max_buckets:
+                truncated = True
+                break
+        return counts, truncated
 
     def filter_counts_by_field(self, filter_type, filter_kwargs, field_name, order="desc", number=100):
         search = self.search(sort='_doc', include_source=False).extra(size=0)
@@ -547,6 +605,7 @@ class OSImageManager:
                 index=OSImage.INDEX,
                 id=id,
                 _source_includes=self._field_includes(fields),
+                _source_excludes=self._field_excludes(fields),
                 timeout=self.default_timeout,
             )
         except NotFoundError as e:
@@ -580,7 +639,7 @@ class OSImageManager:
         body["query"]["bool"]["must"].append(
             {
                 "knn": {
-                    "coca_embedding_vector": {
+                    OSImage.EMBEDDING_VECTOR_FIELD: {
                         "vector": vector,
                         "k": number,
                     },
@@ -601,6 +660,7 @@ class OSImageManager:
             index=OSImage.INDEX,
             body=body,
             _source_includes=self._field_includes(fields),
+            _source_excludes=self._field_excludes(fields),
             timeout=self.default_timeout,
         )
         return OSImage.list_from_hits(response['hits']['hits'])
@@ -618,7 +678,7 @@ class OSImageManager:
                 "bool": {
                     "must": {
                         "knn": {
-                            "coca_embedding_vector": {
+                            OSImage.EMBEDDING_VECTOR_FIELD: {
                                 "vector": vector,
                                 "k": 1,
                             },
@@ -654,8 +714,56 @@ class OSImageMeta:
         self.sort = sort
 
 
+EMBEDDING_FIELD_PREFIX = "coca_embedding"
+EMBEDDING_VECTOR_FIELD = f"{EMBEDDING_FIELD_PREFIX}_vector"
+EMBEDDING_EXISTS_FIELD = f"{EMBEDDING_FIELD_PREFIX}_exists"
+EMBEDDING_AUTHOR_FIELD = f"{EMBEDDING_FIELD_PREFIX}_author"
+
+
+def _coca_embedding_mapping():
+    """Build the kNN vector field mapping based on the configured engine.
+
+    s3vector: AWS Managed OpenSearch S3 Vectors engine — minimal config, no HNSW params.
+    faiss: Default engine for local/CI Docker OpenSearch.
+    """
+    engine = settings.OPENSEARCH_KNN_ENGINE
+    if engine == "s3vector":
+        return {
+            "type": "knn_vector",
+            "dimension": 768,
+            "space_type": "cosinesimil",
+            "method": {
+                "engine": "s3vector",
+            },
+        }
+    else:
+        return {
+            "type": "knn_vector",
+            "dimension": 768,
+            "method": {
+                "name": "hnsw",
+                "engine": "faiss",
+                "space_type": "innerproduct",
+                "parameters": {
+                    "encoder": {
+                        "name": "sq",
+                        "parameters": {
+                            "type": "fp16",
+                        },
+                    },
+                    "ef_construction": 64,
+                    "m": 16,
+                },
+            },
+        }
+
+
 class OSImage:
     INDEX = settings.OPENSEARCH_IMAGES_INDEX_NAME
+    EMBEDDING_FIELD_PREFIX = EMBEDDING_FIELD_PREFIX
+    EMBEDDING_VECTOR_FIELD = EMBEDDING_VECTOR_FIELD
+    EMBEDDING_EXISTS_FIELD = EMBEDDING_EXISTS_FIELD
+    EMBEDDING_AUTHOR_FIELD = EMBEDDING_AUTHOR_FIELD
     INDEX_SETTINGS = {
         "settings": {
             "index": {
@@ -699,27 +807,9 @@ class OSImage:
                 "source": {"type": "keyword", "norms": False},
                 "original_url": {"type": "keyword", "norms": False},
                 "tags": {"type": "keyword", "norms": False},
-                "coca_embedding_exists": {"type": "boolean"},
-                "coca_embedding_vector": {
-                    "type": "knn_vector",
-                    "dimension": 768,
-                    "method": {
-                        "name": "hnsw",
-                        "engine": "faiss",
-                        "space_type": "innerproduct",
-                        "parameters": {
-                            "encoder": {
-                                "name": "sq",
-                                "parameters": {
-                                    "type": "fp16",
-                                },
-                            },
-                            "ef_construction": 64,
-                            "m": 16,
-                        },
-                    },
-                },
-                "coca_embedding_author": {"type": "keyword", "norms": False},
+                EMBEDDING_EXISTS_FIELD: {"type": "boolean"},
+                EMBEDDING_VECTOR_FIELD: _coca_embedding_mapping(),
+                EMBEDDING_AUTHOR_FIELD: {"type": "keyword", "norms": False},
                 "duplicate_state": {"type": "keyword", "norms": False},
                 "related_images": {
                     "type": "object",
@@ -727,6 +817,12 @@ class OSImage:
                     "enabled": False,  # do not index
                 },
                 "datasets": {"type": "keyword", "norms": False},
+                # Group membership denorm (see backend/dataroom/groups/ and the design docs).
+                # group_ids: type-prefixed group ids the image is a member of.
+                # memberships: encoded "role|group_id" pairs (role first to enable cheap
+                # prefix queries by role, e.g. prefix="onhang|").
+                "group_ids": {"type": "keyword", "norms": False},
+                "memberships": {"type": "keyword", "norms": False},
             },
             "dynamic_templates": [
                 # latents
@@ -870,6 +966,7 @@ class OSImage:
         "duplicate_state",
         "related_images",
         "datasets",
+        "memberships",
     )
     required_class_fields = (  # not allowed to be None
         'id',
@@ -909,6 +1006,7 @@ class OSImage:
         "duplicate_state",
         "related_images",
         "datasets",
+        "memberships",
     )
     default_api_fields = (  # fields to return by default in the API
         "id",
@@ -934,11 +1032,14 @@ class OSImage:
         "attributes",
         # "duplicate_state",
         "datasets",
+        # "memberships",  # opt-in via ?include_fields=memberships; the raw
+        # role::type::uuid encoding is internal to OS filtering. Use
+        # /api/images/{id}/groups/ for a hydrated view.
     )
     api_field_to_doc_field_mapping = {  # renames for ?include_fields
         "image_direct_url": ["image"],
         "thumbnail_direct_url": ["thumbnail"],
-        "coca_embedding": ["coca_embedding_exists", "coca_embedding_vector", "coca_embedding_author"],
+        "coca_embedding": [EMBEDDING_EXISTS_FIELD, EMBEDDING_VECTOR_FIELD, EMBEDDING_AUTHOR_FIELD],
         "latents": ["latent_*"],
         "attributes": ["attr_*"],
     }
@@ -979,6 +1080,7 @@ class OSImage:
         duplicate_state: DuplicateState = DuplicateState.UNPROCESSED,
         related_images: RelatedOSImages = None,
         datasets: OSImageDatasets | None = None,
+        memberships: list[str] | None = None,
     ):
         self._validate_id(id)
         self.id = id
@@ -1024,6 +1126,7 @@ class OSImage:
         if datasets is None:
             datasets = OSImageDatasets()
         self.datasets = datasets
+        self.memberships = memberships or []
 
     def __str__(self):
         return self.id
@@ -1085,14 +1188,15 @@ class OSImage:
             thumbnail_error=doc.get('thumbnail_error'),
             original_url=doc.get('original_url'),
             tags=doc.get('tags'),
-            coca_embedding_exists=doc.get('coca_embedding_exists'),
-            coca_embedding_vector=doc.get('coca_embedding_vector'),
-            coca_embedding_author=doc.get('coca_embedding_author'),
+            coca_embedding_exists=doc.get(EMBEDDING_EXISTS_FIELD),
+            coca_embedding_vector=doc.get(EMBEDDING_VECTOR_FIELD),
+            coca_embedding_author=doc.get(EMBEDDING_AUTHOR_FIELD),
             latents=OSLatents.from_hit(doc, latent_types_map=latent_types_map),
             attributes=OSAttributes.from_hit(doc),
             duplicate_state=DuplicateState(doc.get('duplicate_state')),
             related_images=RelatedOSImages.from_hit(doc),
             datasets=OSImageDatasets.from_hit(doc),
+            memberships=doc.get('memberships') or [],
         )
 
     @classmethod
@@ -1172,9 +1276,11 @@ class OSImage:
         doc = {}
         for field in selected_fields:
             if field == "coca_embedding":
-                doc["coca_embedding_exists"] = self.coca_embedding_exists
-                doc["coca_embedding_vector"] = self.coca_embedding_vector
-                doc["coca_embedding_author"] = self.coca_embedding_author
+                doc[OSImage.EMBEDDING_EXISTS_FIELD] = self.coca_embedding_exists
+                # OpenSearch's knn_vector type rejects null values
+                if self.coca_embedding_vector is not None:
+                    doc[OSImage.EMBEDDING_VECTOR_FIELD] = self.coca_embedding_vector
+                doc[OSImage.EMBEDDING_AUTHOR_FIELD] = self.coca_embedding_author
             elif field == "latents" or field.startswith("latent_"):
                 doc.update(self.latents.to_doc())
             elif field == "attributes" or field.startswith("attr_"):
@@ -1558,21 +1664,31 @@ class OSImage:
 
     @property
     def image_url(self):
-        return default_storage.url(self.image) if self.image else None
+        if not self.image:
+            return None
+        with stable_signing_time():
+            return default_storage.url(self.image, expire=STABLE_URL_VALID_SECONDS)
 
     @property
     def image_direct_url(self):
-        with disable_storage_custom_domain(default_storage):
-            return default_storage.url(self.image) if self.image else None
+        if not self.image:
+            return None
+        with stable_signing_time(), disable_storage_custom_domain(default_storage):
+            return default_storage.url(self.image, expire=STABLE_URL_VALID_SECONDS)
 
     @property
     def thumbnail_url(self):
-        return default_storage.url(self.thumbnail) if self.thumbnail else None
+        if not self.thumbnail:
+            return None
+        with stable_signing_time():
+            return default_storage.url(self.thumbnail, expire=STABLE_URL_VALID_SECONDS)
 
     @property
     def thumbnail_direct_url(self):
-        with disable_storage_custom_domain(default_storage):
-            return default_storage.url(self.thumbnail) if self.thumbnail else None
+        if not self.thumbnail:
+            return None
+        with stable_signing_time(), disable_storage_custom_domain(default_storage):
+            return default_storage.url(self.thumbnail, expire=STABLE_URL_VALID_SECONDS)
 
     @tracer.wrap()
     def get_similarity(self, other_image: 'OSImage'):
