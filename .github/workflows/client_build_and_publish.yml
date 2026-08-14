@@ -1,0 +1,75 @@
+name: Client Build and Publish
+
+# Builds dataroom-client on every pull request that touches it, and publishes it
+# to PyPI when a client/* tag is pushed.
+#
+# Only the public repo publishes. This file exists in both repos, so the publish
+# job guards on the repository name and is skipped anywhere else - two repos
+# racing to upload the same version would just fail the second one. The build job
+# is useful everywhere and runs unguarded.
+#
+# The version is not written down: poetry-dynamic-versioning derives it from the
+# client/* tag being pushed. Cut a release by tagging, and note the tag has to
+# live in the repo that builds - the two repos have unrelated histories, so a tag
+# from one is meaningless in the other.
+on:
+  push:
+    tags:
+      - client/*
+  pull_request:
+    paths:
+      - dataroom_client/**
+      - .github/workflows/client_build_and_publish.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version is read out of the tag history
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+          pipx inject poetry "poetry-dynamic-versioning[plugin]"
+
+      - name: Build package
+        working-directory: dataroom_client
+        run: poetry build
+
+      - name: Show what was built
+        working-directory: dataroom_client
+        run: ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dataroom-client-dist
+          path: dataroom_client/dist
+
+  publish:
+    needs: [build]
+    if: github.event_name == 'push' && github.repository == 'Photoroom/dataroom'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write # PyPI trusted publishing
+
+    steps:
+      # Publishes exactly what the build job produced, rather than rebuilding and
+      # hoping for the same bytes.
+      - uses: actions/download-artifact@v4
+        with:
+          name: dataroom-client-dist
+          path: dist
+
+      # Trusted publishing: PyPI verifies this workflow's OIDC identity, so there
+      # is no API token to store or rotate.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

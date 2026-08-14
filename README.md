@@ -1,6 +1,6 @@
 # DataRoom
 
-<img src="./screenshot.jpg" alt="Screenshot of DataRoom UI" />
+<img src="./dataroom-screenshot.jpg" alt="Screenshot of DataRoom UI: filtered image grid with tag and dataset filters, and a selection panel" />
 
 [![Tests](https://github.com/Photoroom/dataroom/actions/workflows/test.yml/badge.svg)](https://github.com/Photoroom/dataroom/actions/workflows/test.yml)
 
