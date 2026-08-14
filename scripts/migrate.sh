@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# Set default environment to prod if not specified
-ENV=${1:-prod}
+# Set default environment to production if not specified
+ENV=${1:-production}
 
 # Validate environment
-if [ "$ENV" != "dev" ] && [ "$ENV" != "eval" ] && [ "$ENV" != "prod" ] && [ "$ENV" != "production" ]; then
-    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'eval', 'prod', or 'production'"
+if [ "$ENV" != "dev" ] && [ "$ENV" != "eval" ] && [ "$ENV" != "production" ]; then
+    echo "Error: Invalid environment '$ENV'. Must be 'dev', 'eval', or 'production'"
     exit 1
 fi
 
@@ -14,9 +14,6 @@ echo "Running migrations for $ENV environment..."
 
 # Set environment-specific Django settings
 case $ENV in
-    "prod")
-        DJANGO_SETTINGS="backend.config.settings.prod"
-        ;;
     "eval")
         DJANGO_SETTINGS="backend.config.settings.eval"
         ;;

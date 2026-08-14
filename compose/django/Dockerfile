@@ -85,7 +85,7 @@ COPY backend/ ./backend/
 COPY --from=js-deps /build/backend/static_built ./backend/static_built
 
 # Collect static files
-RUN DJANGO_SETTINGS_MODULE="backend.config.settings.prod" \
+RUN DJANGO_SETTINGS_MODULE="backend.config.settings.production" \
     DJANGO_ALLOWED_HOSTS="*" \
     DJANGO_SECRET_KEY="tmp" \
     DATABASE_URL="" \
