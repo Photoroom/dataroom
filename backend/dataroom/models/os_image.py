@@ -499,12 +499,12 @@ class OSImageManager:
         return list(set(translated_fields))
 
     def _field_excludes(self, fields):
-        # With s3vector engine, including coca_embedding_vector in _source triggers an S3
-        # fetch per document — even for non-kNN queries. Always exclude it unless the caller
-        # explicitly requests the 'coca_embedding' field (e.g. for similarity search).
-        if fields and 'coca_embedding' in fields:
-            return None
-        return [OSImage.EMBEDDING_VECTOR_FIELD]
+        # s3vector reads each *_embedding_vector from S3 per hit, so leave
+        # them out of _source unless the caller asked for that embedding
+        excludes = []
+        if not (fields and 'coca_embedding' in fields):
+            excludes.append(OSImage.EMBEDDING_VECTOR_FIELD)
+        return excludes or None
 
     def search(self, fields=None, search_after=None, sort=None, include_source=True):
         extra = dict(self._search_params)
@@ -719,6 +719,19 @@ EMBEDDING_VECTOR_FIELD = f"{EMBEDDING_FIELD_PREFIX}_vector"
 EMBEDDING_EXISTS_FIELD = f"{EMBEDDING_FIELD_PREFIX}_exists"
 EMBEDDING_AUTHOR_FIELD = f"{EMBEDDING_FIELD_PREFIX}_author"
 
+# DINOv2 backbones the classifier service runs, features land in the latent
+# <backbone>_<image_size>_features
+SUPPORTED_EMBEDDING_SPACES = (
+    "vits14",
+    "vitb14",
+    "vitl14",
+    "vitg14",
+    "vits14_reg",
+    "vitb14_reg",
+    "vitl14_reg",
+    "vitg14_reg",
+)
+
 
 def _coca_embedding_mapping():
     """Build the kNN vector field mapping based on the configured engine.
@@ -823,8 +836,18 @@ class OSImage:
                 # prefix queries by role, e.g. prefix="onhang|").
                 "group_ids": {"type": "keyword", "norms": False},
                 "memberships": {"type": "keyword", "norms": False},
+                # Classifier scores, keyed by classifier slug/version. Indexed
+                # via the classification_scores dynamic template.
+                "classifications": {"type": "object", "dynamic": True},
             },
             "dynamic_templates": [
+                # classifications.<classifier slug/version> -> one double each
+                {
+                    "classification_scores": {
+                        "path_match": "classifications.*",
+                        "mapping": {"type": "double"},
+                    },
+                },
                 # latents
                 # latent_<latent_type>_file
                 {
@@ -967,6 +990,7 @@ class OSImage:
         "related_images",
         "datasets",
         "memberships",
+        "classifications",
     )
     required_class_fields = (  # not allowed to be None
         'id',
@@ -1007,6 +1031,7 @@ class OSImage:
         "related_images",
         "datasets",
         "memberships",
+        "classifications",
     )
     default_api_fields = (  # fields to return by default in the API
         "id",
@@ -1035,6 +1060,7 @@ class OSImage:
         # "memberships",  # opt-in via ?include_fields=memberships; the raw
         # role::type::uuid encoding is internal to OS filtering. Use
         # /api/images/{id}/groups/ for a hydrated view.
+        # "classifications",  # opt-in via ?include_fields=classifications
     )
     api_field_to_doc_field_mapping = {  # renames for ?include_fields
         "image_direct_url": ["image"],
@@ -1081,6 +1107,7 @@ class OSImage:
         related_images: RelatedOSImages = None,
         datasets: OSImageDatasets | None = None,
         memberships: list[str] | None = None,
+        classifications: dict[str, float] | None = None,
     ):
         self._validate_id(id)
         self.id = id
@@ -1127,6 +1154,7 @@ class OSImage:
             datasets = OSImageDatasets()
         self.datasets = datasets
         self.memberships = memberships or []
+        self.classifications = classifications or {}
 
     def __str__(self):
         return self.id
@@ -1197,6 +1225,7 @@ class OSImage:
             related_images=RelatedOSImages.from_hit(doc),
             datasets=OSImageDatasets.from_hit(doc),
             memberships=doc.get('memberships') or [],
+            classifications=doc.get('classifications') or {},
         )
 
     @classmethod

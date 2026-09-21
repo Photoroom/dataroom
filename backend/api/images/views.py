@@ -53,7 +53,14 @@ from backend.api.images.serializers import (
 from backend.dataroom.exceptions import LatentTypeValidationError, MissingEmbeddingError, SaveConflictError
 from backend.dataroom.models.attributes import AttributesFieldNotFoundError, AttributesSchema
 from backend.dataroom.models.group import Membership
-from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSFieldType, OSImage, OSLatent, OSLatents
+from backend.dataroom.models.os_image import (
+    OSAttribute,
+    OSAttributes,
+    OSFieldType,
+    OSImage,
+    OSLatent,
+    OSLatents,
+)
 from backend.dataroom.opensearch import OS, OSBulkIndex
 from backend.dataroom.utils.coca_text_encoder import encode_text as encode_text_local
 from backend.dataroom.utils.fetch_embedding import fetch_coca_embedding_for_text
@@ -657,14 +664,16 @@ class ImageViewSet(ViewSet):
             except OSImage.DoesNotExist:
                 pass
             else:
-                deleted_msg = ' as a deleted image' if same_id_image.is_deleted else ''
-                return Response(
-                    {
-                        'error': f'The provided ID already exists in the database{deleted_msg}. '
-                        'Make sure all your IDs are unique and can trace back to the original image.',
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+                if not same_id_image.is_deleted:
+                    return Response(
+                        {
+                            'error': 'The provided ID already exists in the database. '
+                            'Make sure all your IDs are unique and can trace back to the original image.',
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                # a soft-deleted image holds this ID: purge it so the new image can take its place
+                same_id_image.delete_permanently()
 
             # check if same hash already exists
             image_hash = serializer.validated_data.get('image_hash', None)
@@ -801,8 +810,10 @@ class ImageViewSet(ViewSet):
                 setattr(image, field, value)
 
         if updated_fields:
+            # Forcing a refresh was the slowest step of a batch of latent uploads. Searches catch up within 1s.
+            refresh = updated_fields != ['latents']
             try:
-                image.save(fields=updated_fields, latent_types=latent_types)
+                image.save(fields=updated_fields, latent_types=latent_types, refresh=refresh)
             except SaveConflictError as e:
                 return Response({'error': e.description}, status=status.HTTP_409_CONFLICT)
             except LatentTypeValidationError as e:

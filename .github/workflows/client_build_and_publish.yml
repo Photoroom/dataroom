@@ -3,10 +3,9 @@ name: Client Build and Publish
 # Builds dataroom-client on every pull request that touches it, and publishes it
 # to PyPI when a client/* tag is pushed.
 #
-# Only the public repo publishes. This file exists in both repos, so the publish
-# job guards on the repository name and is skipped anywhere else - two repos
-# racing to upload the same version would just fail the second one. The build job
-# is useful everywhere and runs unguarded.
+# Only public repo publishes release versions.
+# The private repo may publish `.dev` pre-release versions only,
+# so a build can be tried on PyPI on `dev` environments before `@latest` release.
 #
 # The version is not written down: poetry-dynamic-versioning derives it from the
 # client/* tag being pushed. Cut a release by tagging, and note the tag has to
@@ -55,7 +54,12 @@ jobs:
 
   publish:
     needs: [build]
-    if: github.event_name == 'push' && github.repository == 'Photoroom/dataroom'
+    # anywhere but the public repo, only `.dev` tags publish
+    if: >-
+      github.event_name == 'push' && (
+        github.repository == 'Photoroom/dataroom' ||
+        contains(github.ref_name, '.dev')
+      )
     runs-on: ubuntu-latest
 
     permissions:

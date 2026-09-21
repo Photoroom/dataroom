@@ -35,7 +35,10 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # OpenSearch
 AWS_OPEN_SEARCH_UNAUTHENTICATED_REQUESTS = True
-AWS_OPEN_SEARCH_URL = 'http://localhost:9200'
+# localhost when running tests on the host; from inside docker, override with
+# TEST_OPENSEARCH_URL=http://opensearch:9200 (the index name below keeps the
+# real `images` index out of reach either way).
+AWS_OPEN_SEARCH_URL = env('TEST_OPENSEARCH_URL', default='http://localhost:9200')
 
 OPENSEARCH_IMAGES_INDEX_NAME = 'test_images'
 OPENSEARCH_DEFAULT_REFRESH = True

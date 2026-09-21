@@ -38,6 +38,9 @@ export interface FilterLane {
 interface ImageListDataContextType {
   // image list
   images: OSImage[];
+  /** slug/version of the classifier whose score filter is active, if any —
+   * tiles show that classifier's score as a badge. */
+  scoredClassifier: string | null;
   isLoadingImages: boolean;
   isLoadingImagesError: boolean;
   hasNextPage: boolean;
@@ -107,10 +110,18 @@ const ImageListDataContext = createContext<ImageListDataContextType | undefined>
 // -------------------- Constants --------------------
 const LIST_INCLUDE_FIELDS = "thumbnail,image";
 const PAGE_SIZE = 100;
+// Routes other than /images that render <ImageList/>: a classifier's annotations
+// view (/classifiers/<slug>/<version>) and its annotate workspace.
+const IMAGE_GRID_ROUTE = /^\/classifiers\/([^/]+)\/([^/]+)(?:\/annotate(?:\/[^/]+)?)?\/?$/;
 
 // -------------------- Data provider --------------------
 export function ImageListDataProvider({ children }: { children: React.ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { pathname } = useLocation();
+  // The live params, readable from the URL-writing effect without putting them
+  // in its deps — that would re-run it on every URL change, including its own.
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
 
   // -------------------- Get initial URL state --------------------
   const initialSimilarImageId = searchParams.get("similar") || null;
@@ -152,17 +163,25 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
   const clampCols = (n: number) =>
     Math.min(MAX_GRID_COLUMNS, Math.max(MIN_GRID_COLUMNS, Number.isFinite(n) ? n : MIN_GRID_COLUMNS));
 
+  // Classifier pages remember their own size: labelling wants as many tiles
+  // on screen as fit, browsing wants to see them.
+  const isClassifierGrid = IMAGE_GRID_ROUTE.test(pathname);
+  const gridStorageKey = isClassifierGrid ? "gridColumns.classifier" : "gridColumns";
   const [gridColumns, setGridColumns] = useState<number>(() => {
-    const saved = localStorage.getItem("gridColumns");
+    const saved = localStorage.getItem(gridStorageKey);
     if (saved) return clampCols(Number(saved));
+    if (isClassifierGrid) return MAX_GRID_COLUMNS;
     return window.innerWidth < 640 ? 3 : 6;
   });
 
-  const handleSetGridColumns = useCallback((cols: number) => {
-    const next = clampCols(cols);
-    setGridColumns(next);
-    localStorage.setItem("gridColumns", String(next));
-  }, []);
+  const handleSetGridColumns = useCallback(
+    (cols: number) => {
+      const next = clampCols(cols);
+      setGridColumns(next);
+      localStorage.setItem(gridStorageKey, String(next));
+    },
+    [gridStorageKey]
+  );
 
   // -------------------- Filters (lane model) --------------------
   // `lanes` is the live/draft state (edited during multi-select without triggering queries).
@@ -346,8 +365,14 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
   // Single writer for the whole URL query string (filters, ?query=, and similarity). One effect that
   // owns every param — built from the updater's `prev` (the latest params, never a stale closure) —
   // means the two writers can't clobber each other, which was resetting filters (esp. on Safari).
+  //
+  // It runs on mount on EVERY route, because this provider is mounted for all of
+  // them. Writing params identical to the ones already there still pushes a
+  // history entry, so pages with no filters at all (a classifier's own page) were
+  // collecting junk entries and taking two or three Backs to leave. Hence the
+  // no-op guard: same query string in, no navigation out.
   useEffect(() => {
-    setSearchParams(prev => {
+    const buildParams = (prev: URLSearchParams) => {
       const newParams = new URLSearchParams(prev);
       // Remove only filter-related params (not similarity/mode params)
       for (const key of lanesToAllFilterParamKeys(committedLanes)) newParams.delete(key);
@@ -370,7 +395,12 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
       if (sim && similarity.similarVector) newParams.set("similarVector", "true");
       else newParams.delete("similarVector");
       return newParams;
-    });
+    };
+
+    // Ref, not the `searchParams` value: this must not re-run when the URL
+    // changes elsewhere, only when the state it mirrors does.
+    if (buildParams(searchParamsRef.current).toString() === searchParamsRef.current.toString()) return;
+    setSearchParams(buildParams);
   }, [
     committedFilterParams,
     activeQuerySlug,
@@ -391,16 +421,37 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
 
   // This provider is mounted by MainLayout, which wraps every page (images,
   // datasets, groups, group-types). The image list/count are only ever rendered
-  // on the image LIST route, so gate the network queries on that — otherwise the
-  // global, unfiltered list + count fire needlessly on group/dataset pages.
-  const { pathname } = useLocation();
-  const onImageListRoute = pathname === URLS.IMAGE_LIST();
+  // on the routes that show the image grid, so gate the network queries on
+  // those — otherwise the global, unfiltered list + count fire needlessly on
+  // group/dataset pages. The classifier routes render <ImageList/> too: its
+  // annotations view and its annotate workspace ARE the image grid, filtered.
+  const onImageListRoute = pathname === URLS.IMAGE_LIST() || IMAGE_GRID_ROUTE.test(pathname);
+
+  // On a classifier's own pages that classifier is the one in view, so its
+  // scores show without asking for them: while annotating, the score is what
+  // you are judging each label against.
+  const routeClassifier = useMemo(() => {
+    const match = pathname.match(IMAGE_GRID_ROUTE);
+    return match ? `${match[1]}/${match[2]}` : null;
+  }, [pathname]);
+
+  // A classifier-score filter makes the tiles show that classifier's scores;
+  // the field is opt-in server-side, so only ask for it when it will be used.
+  // An explicit filter wins: it may name a different classifier than the page.
+  const scoredClassifier = useMemo(() => {
+    for (const lane of committedLanes) {
+      for (const chip of lane.chips) {
+        if (chip.field.startsWith("clf:")) return chip.field.slice(4);
+      }
+    }
+    return routeClassifier;
+  }, [committedLanes, routeClassifier]);
 
   // Browse mode query (uses committed params so it doesn't fire on every multi-select tick)
   const browseQuery = useImagesList(
     {
       ...committedFilterParams,
-      include_fields: LIST_INCLUDE_FIELDS,
+      include_fields: scoredClassifier ? `${LIST_INCLUDE_FIELDS},classifications` : LIST_INCLUDE_FIELDS,
       page_size: PAGE_SIZE,
     },
     {
@@ -554,6 +605,7 @@ export function ImageListDataProvider({ children }: { children: React.ReactNode 
         expandQueryToChips,
         // count
         totalCount,
+        scoredClassifier,
         // refetch
         refetchImages: () => browseQuery.refetch(),
       }}

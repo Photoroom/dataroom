@@ -3,6 +3,8 @@ from .deployed import *  # noqa: F403
 # Settings for the development deployment (dataroom-dev ECS).
 # Everything shared with the other deployed environments lives in deployed.py.
 
+DEPLOYMENT_ENV = 'dev'
+
 # STORAGES
 # ------------------------------------------------------------------------------
 # Dev serves images straight from S3 rather than R2.

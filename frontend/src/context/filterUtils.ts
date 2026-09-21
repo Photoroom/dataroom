@@ -1,4 +1,5 @@
 import { FilterChip, FilterLane } from "./ImageListDataContext";
+import { EMBEDDING_FIELDS } from "../layouts/images/filter/constants";
 
 // -------------------- Constants --------------------
 
@@ -53,8 +54,8 @@ export function chipsToApiParams(chips: FilterChip[]): Record<string, string> {
     } else if (field === "latent") {
       const eq = fieldChips.filter(c => c.operator === "eq").map(c => c.value);
       const ne = fieldChips.filter(c => c.operator === "ne").map(c => c.value);
-      if (eq.length) params.has_latents = eq.join(",");
-      if (ne.length) params.lacks_latents = ne.join(",");
+      if (eq.length) params.has_latents = [params.has_latents, ...eq].filter(Boolean).join(",");
+      if (ne.length) params.lacks_latents = [params.lacks_latents, ...ne].filter(Boolean).join(",");
     } else if (field === "group") {
       const eq = fieldChips.filter(c => c.operator === "eq").map(c => c.value);
       if (eq.length) params.group_ids = eq.join(",");
@@ -65,6 +66,9 @@ export function chipsToApiParams(chips: FilterChip[]): Record<string, string> {
       if (eq.length) params.roles = eq.join(",");
     } else if (field === "duplicate_state") {
       params.duplicate_state = fieldChips[0].value;
+    } else if (EMBEDDING_FIELDS.has(field)) {
+      // The backend asks it the other way round: __empty=true is "missing".
+      params[`${field}__empty`] = String(fieldChips[0].value === "missing");
     } else if (field === "aspect_ratio_fraction") {
       params.aspect_ratio_fraction = fieldChips[0].value;
     } else if (NUMERIC_FIELDS.has(field)) {
@@ -104,6 +108,28 @@ export function chipsToApiParams(chips: FilterChip[]): Record<string, string> {
       params.has_attributes = fieldChips.map(c => c.value).join(",");
     } else if (field === "lacks_attributes") {
       params.lacks_attributes = fieldChips.map(c => c.value).join(",");
+    } else if (field.startsWith("clf:")) {
+      // Classifier score threshold: clf:<slug>/<version> chips become the
+      // classifications=<slug>/<version>__<op>:<score> backend filter.
+      const slugVersion = field.slice(4);
+      const existsChips = fieldChips.filter(c => c.operator === "exists");
+      const notExistsChips = fieldChips.filter(c => c.operator === "not_exists");
+      const valueChips = fieldChips.filter(c => c.operator !== "exists" && c.operator !== "not_exists");
+
+      if (existsChips.length) {
+        params.has_classifications = [params.has_classifications, slugVersion].filter(Boolean).join(",");
+      }
+      if (notExistsChips.length) {
+        params.lacks_classifications = [params.lacks_classifications, slugVersion].filter(Boolean).join(",");
+      }
+      if (valueChips.length) {
+        const parts: string[] = params.classifications ? params.classifications.split(",") : [];
+        for (const chip of valueChips) {
+          if (chip.operator === "eq") parts.push(`${slugVersion}:${chip.value}`);
+          else parts.push(`${slugVersion}__${chip.operator}:${chip.value}`);
+        }
+        params.classifications = parts.join(",");
+      }
     }
   }
   return params;
@@ -138,6 +164,10 @@ export function parseChipsFromUrl(sp: URLSearchParams): FilterChip[] {
   if (ds) add("duplicate_state", "eq", ds);
   const arf = sp.get("aspect_ratio_fraction");
   if (arf) add("aspect_ratio_fraction", "eq", arf);
+  for (const field of EMBEDDING_FIELDS) {
+    const empty = sp.get(`${field}__empty`);
+    if (empty) add(field, "eq", empty === "true" ? "missing" : "present");
+  }
 
   // Attributes (name:value or name__op:value)
   const attrs = sp.get("attributes");
@@ -156,6 +186,26 @@ export function parseChipsFromUrl(sp: URLSearchParams): FilterChip[] {
       add(`attr:${attrName}`, op, attrValue);
     }
   }
+
+  // Classifier scores (slug/version:value or slug/version__op:value)
+  const classifications = sp.get("classifications");
+  if (classifications) {
+    for (const pair of classifications.split(",")) {
+      const colonIdx = pair.lastIndexOf(":");
+      if (colonIdx <= 0) continue;
+      let slugVersion = pair.slice(0, colonIdx);
+      const score = pair.slice(colonIdx + 1);
+      let op = "eq";
+      const dunderIdx = slugVersion.indexOf("__");
+      if (dunderIdx > 0) {
+        op = slugVersion.slice(dunderIdx + 2);
+        slugVersion = slugVersion.slice(0, dunderIdx);
+      }
+      add(`clf:${slugVersion}`, op, score);
+    }
+  }
+  for (const v of csv("has_classifications")) add(`clf:${v}`, "exists", "");
+  for (const v of csv("lacks_classifications")) add(`clf:${v}`, "not_exists", "");
 
   // Numeric fields (exact + range)
   for (const field of NUMERIC_FIELDS) {
@@ -199,6 +249,9 @@ export function getAllFilterParamKeys(chips: FilterChip[]): string[] {
     "duplicate_state",
     "aspect_ratio_fraction",
     "attributes",
+    "classifications",
+    "has_classifications",
+    "lacks_classifications",
     "filter_lanes",
   ])
     keys.add(k);

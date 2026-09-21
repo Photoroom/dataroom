@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataroom-pipelines"
+version = "0.2.0"
+description = "Dataroom's classifier pipelines, a Dagster code location"
+requires-python = ">=3.11"
+dependencies = [
+    # Matches the chart's appVersion (services/dagster/helm/dagster/Chart.yaml);
+    # bump them together. The libraries resolve to their matching 0.x releases
+    # through the dagster pin.
+    "dagster==1.13.19",
+    # Run pods write event logs straight to the chart's Postgres.
+    "dagster-postgres",
+    # K8sRunLauncher: runs execute as Jobs in the dagster namespace.
+    "dagster-k8s",
+
+    # The CPU build of torch is pinned by the Dockerfile's index, not here:
+    # PyPI serves the CUDA one under the same name and version.
+    "torch>=2.3",
+    "torchvision>=0.18",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+    "pillow>=10.0",
+    # httpx is for fetching image bytes; the API itself goes through the client.
+    "httpx",
+    # Trained heads go to Nebius Object Storage, which speaks S3.
+    "boto3",
+    # Installed from ../dataroom_client in this repo (Dockerfile, CI, compose),
+    # so no version pin: a source build without .git reports 0.0.0.
+    "dataroom-client",
+]
+
+[project.optional-dependencies]
+# dagster-webserver is for `dagster dev` in compose, the chart runs its own
+dev = ["pytest>=8.0", "dagster-webserver"]
+
+[tool.setuptools.packages.find]
+include = ["dataroom*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

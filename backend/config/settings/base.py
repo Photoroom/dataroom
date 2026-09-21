@@ -410,6 +410,7 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     'DEFAULT_PAGINATION_CLASS': 'backend.api.pagination.CustomCursorPagination',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'backend.api.exceptions.api_exception_handler',
 }
 
 SPECTACULAR_SETTINGS = {
@@ -529,3 +530,19 @@ FETCH_TEXT_FOR_IMAGE_HEADER_VALUE = env('FETCH_TEXT_FOR_IMAGE_HEADER_VALUE', def
 # Local CoCa text encoder (ONNX) — set to model path to use local inference
 # instead of the external FETCH_EMBEDDING_FOR_TEXT API.
 COCA_TEXT_ENCODER_MODEL_PATH = env('COCA_TEXT_ENCODER_MODEL_PATH', default=None)
+
+# One Dagster serves every Dataroom; this picks our asset graph there
+# (dataroom/<env>/..., jobs dataroom_<env>_*). dev, eval or prod; others fail to launch.
+DEPLOYMENT_ENV = env('DEPLOYMENT_ENV', default='local')
+CLASSIFIER_RUNNER = env('CLASSIFIER_RUNNER', default='dagster')
+# unset disables classifier training, locally http://host.docker.internal:3000/graphql.
+# The REST endpoints we also use (/report_asset_observation/) live next to it.
+DAGSTER_GRAPHQL_URL = env('DAGSTER_GRAPHQL_URL', default=None)
+# job names are unique per code location, on ml-platform the location is the Helm release name
+DAGSTER_LOCATION_NAME = env('DAGSTER_LOCATION_NAME', default='dataroom')
+DAGSTER_REPOSITORY_NAME = env('DAGSTER_REPOSITORY_NAME', default='__repository__')
+# Cloudflare Access service token for Dagster on ml-platform, both or neither
+DAGSTER_CF_ACCESS_CLIENT_ID = env('DAGSTER_CF_ACCESS_CLIENT_ID', default=None)
+DAGSTER_CF_ACCESS_CLIENT_SECRET = env('DAGSTER_CF_ACCESS_CLIENT_SECRET', default=None)
+# the UI as the browser reaches it, for run links
+DAGSTER_PUBLIC_URL = env('DAGSTER_PUBLIC_URL', default=None)
