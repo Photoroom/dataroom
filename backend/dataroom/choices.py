@@ -100,6 +100,19 @@ class AttributesFieldStringFormat(models.TextChoices):
     URI = "uri", "URI"
 
 
+class TrainingStatus(models.TextChoices):
+    TRAINING = "training", "Training"
+    TRAINED = "trained", "Trained"
+    FAILED = "failed", "Failed"
+
+
+class ApplyRunStatus(models.TextChoices):
+    LAUNCHED = "launched", "Launched"
+    RUNNING = "running", "Running"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+
+
 class StatsType(models.TextChoices):
     TOTAL_IMAGES = "total_images", "Total images"
     TOTAL_DATASETS = "total_datasets", "Total datasets"

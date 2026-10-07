@@ -5,6 +5,7 @@ from backend.task_runner.tasks.delete_images import (
     image_delete_duplicates,
     image_delete_marked_for_deletion,
 )
+from backend.task_runner.tasks.expire_dead_classifier_runs import expire_dead_classifier_runs_periodic
 from backend.task_runner.tasks.r2_migration import r2_migration_fetch_files, r2_migration_get_all_files
 from backend.task_runner.tasks.reconcile_datasets import reconcile_datasets_periodic
 from backend.task_runner.tasks.reconcile_memberships import reconcile_memberships_periodic
@@ -73,6 +74,12 @@ reconcile_memberships_task = PeriodicTaskConfig(
     task_function=reconcile_memberships_periodic,
     # Every 5 minutes. Only failed inline OS writes land here, so healthy runs are
     # no-ops via the partial index; a minute of polling bought nothing.
+    interval_seconds=300,
+)
+
+expire_dead_classifier_runs_task = PeriodicTaskConfig(
+    task_function=expire_dead_classifier_runs_periodic,
+    # asks Dagster about rows still in a non terminal state, runs that died never report back
     interval_seconds=300,
 )
 

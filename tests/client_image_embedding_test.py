@@ -3,6 +3,8 @@ import random
 import pytest
 from asgiref.sync import sync_to_async
 
+from backend.dataroom.models.os_image import OSImage
+from backend.dataroom.opensearch import OS
 from dataroom_client import DataRoomError
 from tests.utils import get_random_vector
 
@@ -80,4 +82,3 @@ async def test_update_image_coca_embedding_invalid(DataRoom, tests_path, image_l
     with pytest.raises(DataRoomError) as exc_info:
         await DataRoom.update_image(image_logo.id, coca_embedding=vector)
     assert "Invalid vector" in str(exc_info.value)
-

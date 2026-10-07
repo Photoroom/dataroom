@@ -77,6 +77,11 @@ package = false
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "backend.config.settings.test"
 FAIL_INVALID_TEMPLATE_VARS = false
+# dagster/ is a separate package with its own virtualenv, its own pyproject and
+# its own CI job (Dagster image). Collected from here it fails at import on
+# torch, which this environment has no reason to hold. Not testpaths=["tests"]:
+# backend/users/tests holds four tests that would then stop running silently.
+addopts = "--ignore=dagster"
 
 
 [tool.black]

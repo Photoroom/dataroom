@@ -5,6 +5,15 @@
  * Store training images at scale.
  * OpenAPI spec version: 1.0.0
  */
+/**
+ * * `add` - add
+* `remove` - remove
+ */
+export enum ActionEnum {
+  add= 'add',
+  remove= 'remove',
+
+}
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 // @ts-ignore TS2450
 export const AttributeFieldStringFormat = {...StringFormatEnum,...BlankEnum,...NullEnum,} as const
@@ -43,6 +52,335 @@ export enum BlankEnum {
   ''= '',
 
 }
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+// @ts-ignore TS2450
+export const ClassifierEmbeddingSpace = {...EmbeddingSpaceEnum,...BlankEnum,} as const
+export interface Classifier {
+  readonly slug_version: string;
+  /** @pattern ^[-a-zA-Z0-9_]+$ */
+  readonly slug: string;
+  readonly version: number;
+  /** @maxLength 100 */
+  name: string;
+  description?: string;
+  version_note?: string;
+  readonly author: User;
+  readonly main_pos_dataset: string;
+  readonly main_neg_dataset: string;
+  readonly val_dataset: string;
+  extra_pos_datasets?: string[];
+  extra_neg_datasets?: string[];
+  readonly counts: ExampleCounts;
+  readonly pos_count: number;
+  readonly neg_count: number;
+  embedding_space?: typeof ClassifierEmbeddingSpace[keyof typeof ClassifierEmbeddingSpace] ;
+  is_frozen?: boolean;
+  readonly date_created: string;
+  readonly date_updated: string;
+}
+
+/**
+ * What to score, and with which trained model.
+ */
+export interface ClassifierApply {
+  target_type: TargetTypeEnum;
+  target_value?: string;
+  /**
+   * Which training's model to apply. Omit for the latest trained one.
+   * @nullable
+   */
+  training_id?: string | null;
+}
+
+export interface ClassifierApplyRun {
+  readonly id: string;
+  readonly status: ClassifierApplyRunStatusEnum;
+  readonly dagster_run_id: string;
+  /** @nullable */
+  readonly dagster_run_url: string | null;
+  readonly training_id: string;
+  readonly model_id: string;
+  readonly target_type: string;
+  readonly target_value: string;
+  readonly processed: number;
+  /** @nullable */
+  readonly total: number | null;
+  readonly error: string;
+  readonly author: User;
+  readonly date_created: string;
+  readonly date_updated: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+// @ts-ignore TS2450
+export const ClassifierApplyRunReportStatus = {...ClassifierApplyRunReportStatusEnum,...NullEnum,} as const
+/**
+ * @nullable
+ */
+export type ClassifierApplyRunReportStatus = typeof ClassifierApplyRunReportStatus[keyof typeof ClassifierApplyRunReportStatus]  | null;
+
+/**
+ * Progress/terminal reports of an apply run.
+ */
+export interface ClassifierApplyRunReport {
+  /** @nullable */
+  status?: ClassifierApplyRunReportStatus;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  total?: number | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  processed?: number | null;
+  error?: string;
+}
+
+/**
+ * * `running` - running
+* `completed` - completed
+* `failed` - failed
+ */
+export enum ClassifierApplyRunReportStatusEnum {
+  running= 'running',
+  completed= 'completed',
+  failed= 'failed',
+
+}
+/**
+ * * `launched` - Launched
+* `running` - Running
+* `completed` - Completed
+* `failed` - Failed
+ */
+export enum ClassifierApplyRunStatusEnum {
+  launched= 'launched',
+  running= 'running',
+  completed= 'completed',
+  failed= 'failed',
+
+}
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+// @ts-ignore TS2450
+export const ClassifierCreateEmbeddingSpace = {...EmbeddingSpaceEnum,...BlankEnum,} as const
+/**
+ * Create: ``slug`` is writable, and must be a slug nothing else uses.
+
+Reusing a slug used to make the next version, sharing the example datasets
+with the version before it. That quietly broke locking: freezing one
+version's datasets froze the other version's too, leaving it unlabellable.
+New versions come from the ``new-version`` endpoint, which gives each one
+its own copies.
+ */
+export interface ClassifierCreate {
+  readonly slug_version: string;
+  /**
+   * @maxLength 100
+   * @pattern ^[-a-zA-Z0-9_]+$
+   */
+  slug: string;
+  readonly version: number;
+  /** @maxLength 100 */
+  name: string;
+  description?: string;
+  version_note?: string;
+  readonly author: User;
+  readonly main_pos_dataset: string;
+  readonly main_neg_dataset: string;
+  readonly val_dataset: string;
+  extra_pos_datasets?: string[];
+  extra_neg_datasets?: string[];
+  readonly counts: ExampleCounts;
+  readonly pos_count: number;
+  readonly neg_count: number;
+  embedding_space?: typeof ClassifierCreateEmbeddingSpace[keyof typeof ClassifierCreateEmbeddingSpace] ;
+  is_frozen?: boolean;
+  readonly date_created: string;
+  readonly date_updated: string;
+}
+
+/**
+ * Which examples to hold out of training.
+
+``random`` re-draws the whole held-out set at the given fraction, sampling
+each side separately: a validation set drawn from the pile as a whole can
+come out nearly all negatives (they usually outnumber positives), and a
+score measured on it would say almost nothing about the positives.
+
+``manual`` edits the set an image at a time — the way to fix a draw that
+put the wrong images in it, or to hold out a specific set by hand.
+
+``preview`` samples without writing, so a caller can show the draw and let
+someone adjust it before it counts. Committing the adjusted draw is then a
+``manual`` call with ``replace``.
+ */
+export interface ClassifierHoldout {
+  mode: ModeEnum;
+  /**
+   * ``random``: the share of EACH side to hold out.
+   * @minimum 0.01
+   * @maximum 0.9
+   */
+  fraction?: number;
+  /**
+   * ``random``: draw reproducibly. Omit for a fresh draw. The draw is stored as dataset membership either way, so it stays put once made.
+   * @nullable
+   */
+  seed?: number | null;
+  /** ``manual``: the images to hold out or put back. */
+  image_ids?: string[];
+  /** ``manual``: whether these images join the held-out set or leave it.
+
+* `add` - add
+* `remove` - remove */
+  action?: ActionEnum;
+  /** ``random``: return the images the draw WOULD hold out and write nothing. The validation dataset is not created either, so previewing costs nothing. */
+  preview?: boolean;
+  /** ``manual`` + ``add``: make the held-out set exactly ``image_ids``, dropping whatever else was in it. How an adjusted preview is committed as one choice rather than added to the last one. */
+  replace?: boolean;
+}
+
+/**
+ * The held-out set after the change, per side. For a ``preview`` these
+describe the draw that WOULD be made; nothing has been written.
+ */
+export interface ClassifierHoldoutResponse {
+  /** Held-out positive examples. */
+  val_pos: number;
+  /** Held-out negative examples. */
+  val_neg: number;
+  /** Images that joined the held-out set. */
+  added: number;
+  /** Images that left it. */
+  removed: number;
+  /** The images the held-out set now holds — or would, for a ``preview``. */
+  image_ids: string[];
+}
+
+/**
+ * Which images to label, and which side to put them on.
+ */
+export interface ClassifierLabel {
+  image_ids: string[];
+  /** The side to put these images on. ``none`` unlabels them: they leave both main example datasets and this classifier stops having an opinion on them.
+
+* `positive` - positive
+* `negative` - negative
+* `none` - none */
+  side: SideEnum;
+}
+
+/**
+ * What a labelling call changed, per side.
+ */
+export interface ClassifierLabelResponse {
+  /** Images that became examples on the requested side. */
+  added: number;
+  /** Images taken off the other side (or off both, for ``none``). */
+  removed: number;
+}
+
+/**
+ * Options for branching a version.
+ */
+export interface ClassifierNewVersion {
+  /** Start the new version with a copy of this one's main example datasets. False gives it empty ones instead, for relabelling from scratch. */
+  copy_examples?: boolean;
+  /** Which of this version's additional positive datasets to carry over, by ``slug/version``. Omit to carry all of them; pass [] for none. Must be a subset of what this version has. */
+  extra_pos_datasets?: string[];
+  /** The negative side of ``extra_pos_datasets``. */
+  extra_neg_datasets?: string[];
+  /** What this new version is for: why it was branched, what is changing. Unlike ``description`` it belongs to the one version, and is not carried forward from the source. */
+  version_note?: string;
+}
+
+export type ClassifierScoresScores = {[key: string]: number};
+
+/**
+ * A batch of scores to write onto image documents.
+ */
+export interface ClassifierScores {
+  scores: ClassifierScoresScores;
+  /** @nullable */
+  run_id?: string | null;
+}
+
+/**
+ * Options for starting a training run.
+ */
+export interface ClassifierTrain {
+  /** Train even if a trained model already exists for the current example counts. Without it, an unchanged classifier returns its existing training instead of computing the same model again. */
+  force?: boolean;
+}
+
+/**
+ * @nullable
+ */
+export type ClassifierTrainingMetrics = {[key: string]: unknown} | null;
+
+/**
+ * A training run as the Training tab shows it. Everything is read-only:
+rows are created by the train action and updated by the service's report.
+ */
+export interface ClassifierTraining {
+  readonly id: string;
+  readonly status: ClassifierTrainingStatusEnum;
+  readonly dagster_run_id: string;
+  /** @nullable */
+  readonly dagster_run_url: string | null;
+  readonly model_id: string;
+  /** @nullable */
+  readonly metrics: ClassifierTrainingMetrics;
+  readonly error: string;
+  readonly forced: boolean;
+  readonly labels_version: string;
+  readonly code_version: string;
+  readonly n_pos: number;
+  readonly n_neg: number;
+  readonly n_val: number;
+  readonly author: User;
+  readonly date_created: string;
+  readonly date_updated: string;
+}
+
+/**
+ * @nullable
+ */
+export type ClassifierTrainingReportMetrics = {[key: string]: unknown} | null;
+
+/**
+ * What the classifier service reports back onto a training record.
+ */
+export interface ClassifierTrainingReport {
+  status: ClassifierTrainingReportStatusEnum;
+  model_id?: string;
+  /** @nullable */
+  metrics?: ClassifierTrainingReportMetrics;
+  error?: string;
+}
+
+/**
+ * * `trained` - trained
+* `failed` - failed
+ */
+export enum ClassifierTrainingReportStatusEnum {
+  trained= 'trained',
+  failed= 'failed',
+
+}
+/**
+ * * `training` - Training
+* `trained` - Trained
+* `failed` - Failed
+ */
+export enum ClassifierTrainingStatusEnum {
+  training= 'training',
+  trained= 'trained',
+  failed= 'failed',
+
+}
 export interface Count {
   count: number;
 }
@@ -59,6 +397,7 @@ export interface Dataset {
   readonly group_count: number;
   description?: string;
   is_frozen?: boolean;
+  readonly is_internal: boolean;
   /** @maxLength 255 */
   cover_image_id?: string;
   /** @nullable */
@@ -107,6 +446,7 @@ export interface DatasetCreate {
   readonly group_count: number;
   description?: string;
   is_frozen?: boolean;
+  is_internal?: boolean;
   /** @maxLength 255 */
   cover_image_id?: string;
   /** @nullable */
@@ -150,6 +490,43 @@ export interface DatasetUpdateGroups {
 
 export interface DatasetUpdateGroupsResponse {
   updated_count: number;
+}
+
+/**
+ * * `vits14` - vits14
+* `vitb14` - vitb14
+* `vitl14` - vitl14
+* `vitg14` - vitg14
+* `vits14_reg` - vits14_reg
+* `vitb14_reg` - vitb14_reg
+* `vitl14_reg` - vitl14_reg
+* `vitg14_reg` - vitg14_reg
+ */
+export enum EmbeddingSpaceEnum {
+  vits14= 'vits14',
+  vitb14= 'vitb14',
+  vitl14= 'vitl14',
+  vitg14= 'vitg14',
+  vits14_reg= 'vits14_reg',
+  vitb14_reg= 'vitb14_reg',
+  vitl14_reg= 'vitl14_reg',
+  vitg14_reg= 'vitg14_reg',
+
+}
+/**
+ * Shape of ``counts`` — declared so the generated clients get numbers
+rather than an opaque object.
+ */
+export interface ExampleCounts {
+  main_pos: number;
+  main_neg: number;
+  extra_pos: number;
+  extra_neg: number;
+  pos: number;
+  neg: number;
+  val_pos: number;
+  val_neg: number;
+  val_orphan: number;
 }
 
 /**
@@ -286,6 +663,15 @@ export interface Membership {
   readonly date_updated: string;
 }
 
+/**
+ * * `random` - random
+* `manual` - manual
+ */
+export enum ModeEnum {
+  random= 'random',
+  manual= 'manual',
+
+}
 export enum NullEnum {
 
 }
@@ -300,6 +686,8 @@ export type OSImageAttributes = {[key: string]: unknown};
  * @nullable
  */
 export type OSImageRelatedImages = {[key: string]: string} | null;
+
+export type OSImageClassifications = {[key: string]: number};
 
 export interface OSImage {
   /**
@@ -347,6 +735,7 @@ export interface OSImage {
   /** @nullable */
   datasets?: string[] | null;
   memberships?: string[];
+  classifications?: OSImageClassifications;
 }
 
 export interface OSImageCocaEmbedding {
@@ -423,6 +812,14 @@ export interface OSImageUpdate {
   coca_embedding?: string;
   /** @nullable */
   related_images?: OSImageUpdateRelatedImages;
+}
+
+export interface PaginatedClassifierList {
+  /** @nullable */
+  next?: string | null;
+  /** @nullable */
+  previous?: string | null;
+  results: Classifier[];
 }
 
 export interface PaginatedDatasetList {
@@ -506,6 +903,33 @@ export interface PaginatedTokenList {
   results: Token[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+// @ts-ignore TS2450
+export const PatchedClassifierEmbeddingSpace = {...EmbeddingSpaceEnum,...BlankEnum,} as const
+export interface PatchedClassifier {
+  readonly slug_version?: string;
+  /** @pattern ^[-a-zA-Z0-9_]+$ */
+  readonly slug?: string;
+  readonly version?: number;
+  /** @maxLength 100 */
+  name?: string;
+  description?: string;
+  version_note?: string;
+  readonly author?: User;
+  readonly main_pos_dataset?: string;
+  readonly main_neg_dataset?: string;
+  readonly val_dataset?: string;
+  extra_pos_datasets?: string[];
+  extra_neg_datasets?: string[];
+  readonly counts?: ExampleCounts;
+  readonly pos_count?: number;
+  readonly neg_count?: number;
+  embedding_space?: typeof PatchedClassifierEmbeddingSpace[keyof typeof PatchedClassifierEmbeddingSpace] ;
+  is_frozen?: boolean;
+  readonly date_created?: string;
+  readonly date_updated?: string;
+}
+
 export interface PatchedDataset {
   readonly slug_version?: string;
   /** @pattern ^[-a-zA-Z0-9_]+$ */
@@ -518,6 +942,7 @@ export interface PatchedDataset {
   readonly group_count?: number;
   description?: string;
   is_frozen?: boolean;
+  readonly is_internal?: boolean;
   /** @maxLength 255 */
   cover_image_id?: string;
   /** @nullable */
@@ -647,6 +1072,17 @@ export interface Role {
 }
 
 /**
+ * * `positive` - positive
+* `negative` - negative
+* `none` - none
+ */
+export enum SideEnum {
+  positive= 'positive',
+  negative= 'negative',
+  none= 'none',
+
+}
+/**
  * @nullable
  */
 export type SimilarOSImageCocaEmbedding = OSImageCocaEmbedding | null;
@@ -657,6 +1093,8 @@ export type SimilarOSImageAttributes = {[key: string]: unknown};
  * @nullable
  */
 export type SimilarOSImageRelatedImages = {[key: string]: string} | null;
+
+export type SimilarOSImageClassifications = {[key: string]: number};
 
 export interface SimilarOSImage {
   /**
@@ -704,6 +1142,7 @@ export interface SimilarOSImage {
   /** @nullable */
   datasets?: string[] | null;
   memberships?: string[];
+  classifications?: SimilarOSImageClassifications;
   similarity: number;
 }
 
@@ -781,6 +1220,21 @@ export interface TagImagesResponse {
   images_tagged: number;
 }
 
+/**
+ * * `dataset` - dataset
+* `query` - query
+* `source` - source
+* `tag` - tag
+* `all` - all
+* `annotations` - annotations
+ */
+export enum TargetTypeEnum {
+  dataset= 'dataset',
+  query= 'query',
+  source= 'source',
+  tag= 'tag',
+
+}
 export interface Token {
   readonly id: string;
   readonly key: string;
@@ -795,6 +1249,47 @@ export interface User {
   readonly id: string;
   readonly email: string;
 }
+
+export type ClassifiersListParams = {
+/**
+ * The pagination cursor value.
+ */
+cursor?: string;
+embedding_space?: string;
+is_frozen?: boolean;
+name__prefix?: string;
+/**
+ * Number of results to return per page.
+ */
+page_size?: number;
+/**
+ * A search term.
+ */
+search?: string;
+slug?: string;
+};
+
+export type ClassifiersRunsListParams = {
+embedding_space?: string;
+is_frozen?: boolean;
+name__prefix?: string;
+/**
+ * A search term.
+ */
+search?: string;
+slug?: string;
+};
+
+export type ClassifiersTrainingsListParams = {
+embedding_space?: string;
+is_frozen?: boolean;
+name__prefix?: string;
+/**
+ * A search term.
+ */
+search?: string;
+slug?: string;
+};
 
 export type DatasetsListParams = {
 /**
@@ -1023,6 +1518,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -1110,6 +1609,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -1142,6 +1645,10 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Include fields that are not there by default with ?include_fields=image,thumbnail
  * @minLength 1
  */
@@ -1150,6 +1657,10 @@ include_fields?: string;
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -1393,6 +1904,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -1476,6 +1991,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -1508,6 +2027,10 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Include fields that are not there by default with ?include_fields=image,thumbnail
  * @minLength 1
  */
@@ -1516,6 +2039,10 @@ include_fields?: string;
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -1700,6 +2227,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -1773,6 +2304,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -1805,9 +2340,17 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -1982,6 +2525,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -2055,6 +2602,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -2087,9 +2638,17 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -2264,6 +2823,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -2337,6 +2900,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -2369,9 +2936,17 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -2546,6 +3121,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -2619,6 +3198,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -2651,9 +3234,17 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -2840,6 +3431,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -2923,6 +3518,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -2955,6 +3554,10 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Include fields that are not there by default with ?include_fields=image,thumbnail
  * @minLength 1
  */
@@ -2963,6 +3566,10 @@ include_fields?: string;
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -3197,6 +3804,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -3280,6 +3891,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -3312,6 +3927,10 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Include fields that are not there by default with ?include_fields=image,thumbnail
  * @minLength 1
  */
@@ -3320,6 +3939,10 @@ include_fields?: string;
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */
@@ -3503,6 +4126,10 @@ aspect_ratio_fraction__empty?: boolean;
  */
 attributes?: string[];
 /**
+ * Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).
+ */
+classifications?: string[];
+/**
  * Filter images with no coca embedding.
  */
 coca_embedding__empty?: boolean;
@@ -3586,6 +4213,10 @@ group_type?: string;
  */
 has_attributes?: string[];
 /**
+ * Filter images scored by all of these comma-separated classifier slug/versions.
+ */
+has_classifications?: string[];
+/**
  * Filter images that have all of these comma-separated list of latents.
  */
 has_latents?: string[];
@@ -3618,6 +4249,10 @@ height__lte?: number;
  */
 height__ne?: number;
 /**
+ * Comma-separated image ids. For showing a known set of images that is not a dataset, group or tag - a staged selection, for instance.
+ */
+ids?: string[];
+/**
  * Include fields that are not there by default with ?include_fields=image,thumbnail
  * @minLength 1
  */
@@ -3626,6 +4261,10 @@ include_fields?: string;
  * Filter images without any of these comma-separated list of attributes.
  */
 lacks_attributes?: string[];
+/**
+ * Filter images not scored by any of these comma-separated classifier slug/versions.
+ */
+lacks_classifications?: string[];
 /**
  * Filter images without any of these comma-separated list of latents.
  */

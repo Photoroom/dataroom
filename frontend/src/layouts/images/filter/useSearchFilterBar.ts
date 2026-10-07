@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   useGroupsList,
   useGroupTypesList,
+  useClassifiersList,
   useQueriesList,
   useRolesList,
   useStatsAttributesList,
@@ -164,12 +165,16 @@ export function useSearchFilterBar() {
 
   // ---- Data fetching ----
   const { data: attributesData } = useStatsAttributesList();
+  const isClassifierField = !!selectedField?.startsWith("clf:");
   const {
     buckets: facetBuckets,
     stats: facetStats,
     histogram: facetHistogram,
     isLoading: facetsLoading,
-  } = useFacets(chips, selectedField, stage === 3 && (!isCatalogSelected || hasOtherFilters));
+    // The facets endpoint doesn't understand classifier-score fields; their
+    // domain is fixed anyway, so skip the fetch and pin the stats to [0, 1].
+  } = useFacets(chips, selectedField, stage === 3 && (!isCatalogSelected || hasOtherFilters) && !isClassifierField);
+  const effectiveFacetStats = isClassifierField ? { min: 0, max: 1, count: 0, avg: 0.5, sum: 0 } : facetStats;
   const { values: catalogValues } = useFieldCatalog(stage === 3 ? selectedField : null, selectedFieldType ?? undefined);
 
   // Catalog list with filter-aware counts overlaid once the facets for the active filters
@@ -204,6 +209,11 @@ export function useSearchFilterBar() {
   );
 
   // ---- Dropdown sections (extracted hook) ----
+  const { data: classifiersData } = useClassifiersList(
+    { page_size: 100, search: inputValue || undefined },
+    { query: { enabled: stage === 1 } }
+  );
+
   const { dropdownSections, rangeExample } = useDropdownSections({
     stage,
     inputValue,
@@ -211,11 +221,12 @@ export function useSearchFilterBar() {
     selectedFieldType,
     selectedOperator,
     indexedAttrs,
+    classifiers: classifiersData?.results ?? [],
     simMode,
     isRangeOp,
     isSingleNumericOp,
     facetBuckets,
-    facetStats,
+    facetStats: effectiveFacetStats,
     catalogValues: effectiveCatalogValues,
     valueLimit,
     latentsData: latentsData as { name: string; image_count: number }[] | undefined,
@@ -243,7 +254,7 @@ export function useSearchFilterBar() {
     addChip,
     removeChip,
     resetAutocomplete,
-    facetStats,
+    facetStats: effectiveFacetStats,
     facetHistogram,
   });
 
@@ -329,14 +340,16 @@ export function useSearchFilterBar() {
       else if (fieldKey.startsWith("attr:")) {
         const attr = indexedAttrs.find(a => a.name === fieldKey.slice(5));
         fType = attr ? getAttrFieldType(attr) : "string";
-      } else fType = "string";
+      } else if (fieldKey.startsWith("clf:")) fType = "numeric";
+      else fType = "string";
       setSelectedField(fieldKey);
       setSelectedFieldType(fType);
       setInputValue("");
       setHighlightedIndex(0);
 
-      // Auto-select default operator to skip stage 2
-      const defaultOp = DEFAULT_OPERATOR[fType];
+      // Auto-select default operator to skip stage 2. Classifier scores
+      // default to a one-sided threshold: "score >= x" is the common ask.
+      const defaultOp = fieldKey.startsWith("clf:") ? "gte" : DEFAULT_OPERATOR[fType];
       if (defaultOp) {
         setSelectedOperator(defaultOp);
       }

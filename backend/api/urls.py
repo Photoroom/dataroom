@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from backend.api.classifiers.views import ClassifierViewSet
 from backend.api.datasets.views import DatasetViewSet
 from backend.api.groups.views import GroupTypeViewSet, GroupViewSet, RoleViewSet
 from backend.api.images.views import ImageViewSet
@@ -15,6 +16,7 @@ app_name = "api"
 router = DefaultRouter()
 router.register(r'images', ImageViewSet, basename='images')
 router.register(r'datasets', DatasetViewSet, basename='datasets')
+router.register(r'classifiers', ClassifierViewSet, basename='classifiers')
 router.register(r'group-types', GroupTypeViewSet, basename='group-types')
 router.register(r'roles', RoleViewSet, basename='roles')
 router.register(r'groups', GroupViewSet, basename='groups')

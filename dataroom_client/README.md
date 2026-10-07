@@ -5,6 +5,13 @@
 pip install dataroom-client
 ```
 
+Pre-releases are published too, and never installed by default:
+
+```
+pip install --pre dataroom-client
+pip install dataroom-client==1.2.0.dev1
+```
+
 
 # Usage
 

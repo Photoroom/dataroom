@@ -10,6 +10,7 @@ from backend.task_runner.task_config import PeriodicTaskConfig, QueuedTaskConfig
 from backend.task_runner.tasks import (
     delete_duplicates_task,
     delete_marked_for_deletion_task,
+    expire_dead_classifier_runs_task,
     mark_duplicates_task,
     reconcile_datasets_task,
     reconcile_memberships_task,
@@ -247,6 +248,7 @@ def main():
         update_queue_stats_task,
         reconcile_memberships_task,
         reconcile_datasets_task,
+        expire_dead_classifier_runs_task,
     ]
     queued_tasks = [
         delete_duplicates_task,

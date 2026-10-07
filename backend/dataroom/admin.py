@@ -13,6 +13,7 @@ from backend.dataroom.models import (
     Stats,
     Tag,
 )
+from backend.dataroom.models.classifier import Classifier, ClassifierApplyRun, ClassifierTraining
 from backend.dataroom.models.dataset import Dataset, DatasetMembership
 from backend.dataroom.models.group import Group, GroupType, GroupTypeRole, Membership, Role
 from backend.dataroom.models.query import Query
@@ -155,6 +156,18 @@ class AttributesFieldAdmin(admin.ModelAdmin):
         if self.model.objects.count() >= settings.MAX_ATTRIBUTES_FIELDS:
             messages.warning(request, "You have reached the maximum number of attributes fields.")
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(Classifier)
+class ClassifierAdmin(admin.ModelAdmin):
+    list_display = ('slug_version', 'name', 'embedding_space', 'is_frozen', 'date_created')
+    search_fields = ('slug_version', 'name')
+    list_filter = ('is_frozen', 'embedding_space')
+    prepopulated_fields = {'slug': ('name',)}
+    # slug_version/version are derived from slug on save.
+    readonly_fields = ('slug_version', 'version', 'date_created', 'date_updated')
+    raw_id_fields = ('author', 'main_pos_dataset', 'main_neg_dataset')
+    filter_horizontal = ('extra_pos_datasets', 'extra_neg_datasets')
 
 
 class DatasetMembershipInline(admin.TabularInline):
@@ -328,3 +341,21 @@ class QueryAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('query_dict',)
     raw_id_fields = ('author',)
+
+
+@admin.register(ClassifierTraining)
+class ClassifierTrainingAdmin(admin.ModelAdmin):
+    list_display = ('classifier', 'status', 'model_id', 'n_pos', 'n_neg', 'date_created')
+    search_fields = ('classifier__slug_version', 'model_id', 'dagster_run_id')
+    list_filter = ('status',)
+    readonly_fields = ('date_created', 'date_updated')
+    raw_id_fields = ('classifier', 'author')
+
+
+@admin.register(ClassifierApplyRun)
+class ClassifierApplyRunAdmin(admin.ModelAdmin):
+    list_display = ('classifier', 'status', 'target_type', 'target_value', 'processed', 'total', 'date_created')
+    search_fields = ('classifier__slug_version', 'dagster_run_id')
+    list_filter = ('status', 'target_type')
+    readonly_fields = ('date_created', 'date_updated')
+    raw_id_fields = ('classifier', 'training', 'author')

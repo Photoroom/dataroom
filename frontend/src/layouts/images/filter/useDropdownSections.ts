@@ -9,10 +9,12 @@ import {
   SHOW_MORE_KEY,
   getFieldLabel,
   isCatalogField,
+  EMBEDDING_FIELDS,
+  EMBEDDING_PRESENCE_LABELS,
 } from "./constants";
 import { computeRangeExample } from "./numericConflicts";
 import type { FacetBucket } from "./useFacets";
-import type { AttributeField, Group, GroupType, Query, Role } from "../../../api/client.schemas";
+import type { AttributeField, Classifier, Group, GroupType, Query, Role } from "../../../api/client.schemas";
 import type React from "react";
 import { BookmarkIcon } from "@heroicons/react/20/solid";
 import { MyQueryIcon } from "./MyQueryIcon";
@@ -24,6 +26,8 @@ interface UseDropdownSectionsArgs {
   selectedFieldType: FieldType | null;
   selectedOperator: string | null;
   indexedAttrs: AttributeField[];
+  /** Classifiers whose scores can be filtered on (clf:<slug>/<version> fields). */
+  classifiers: Classifier[];
   simMode: "text" | "image" | "vector" | null;
   isRangeOp: boolean;
   isSingleNumericOp: boolean;
@@ -57,6 +61,7 @@ export function useDropdownSections({
   selectedFieldType,
   selectedOperator,
   indexedAttrs,
+  classifiers,
   simMode,
   isRangeOp,
   isSingleNumericOp,
@@ -151,6 +156,22 @@ export function useDropdownSections({
       }
       attrItems.sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
       if (attrItems.length) sections.push({ header: "Attributes", items: attrItems });
+
+      // Classifier scores: one field per classifier version, filtering on the
+      // classifications["<slug>/<version>"] written by apply runs.
+      const clfItems: DropdownItem[] = [];
+      for (const clf of classifiers) {
+        const haystack = `${clf.name} ${clf.slug_version}`.toLowerCase();
+        if (!query || haystack.includes(query)) {
+          clfItems.push({
+            key: `clf:${clf.slug_version}`,
+            label: `${clf.name} score`,
+            description: clf.slug_version,
+            typeBadge: "score",
+          });
+        }
+      }
+      if (clfItems.length) sections.push({ header: "Classifier Scores", items: clfItems });
       if (simItems.length && !hideSimilarity) sections.push({ header: "Similarity Search", items: simItems });
       return sections;
     }
@@ -191,6 +212,12 @@ export function useDropdownSections({
         if (!query || opt.label.toLowerCase().includes(query) || opt.value.includes(query)) {
           const bucket = facetBuckets.find(b => String(b.key) === opt.value);
           items.push({ key: opt.value, label: opt.label, count: bucket?.doc_count });
+        }
+      }
+    } else if (EMBEDDING_FIELDS.has(selectedField ?? "")) {
+      for (const [value, label] of Object.entries(EMBEDDING_PRESENCE_LABELS)) {
+        if (!query || label.toLowerCase().includes(query)) {
+          items.push({ key: value, label });
         }
       }
     } else if (selectedField === "latent") {
