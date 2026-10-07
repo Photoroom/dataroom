@@ -8,6 +8,7 @@ from django.views.generic import RedirectView
 from django_jinja import views as jinja_views
 from drf_spectacular import views as spectacular
 
+from backend.api.exceptions import json_server_error
 from backend.dataroom import views
 from backend.users.views import UserLoginView
 
@@ -19,7 +20,14 @@ admin.site.index_title = admin_title
 handler400 = jinja_views.BadRequest.as_view(tmpl_name="errors/400.jinja")
 handler403 = jinja_views.PermissionDenied.as_view(tmpl_name="errors/403.jinja")
 handler404 = jinja_views.PageNotFound.as_view(tmpl_name="errors/404.jinja")
-handler500 = jinja_views.ServerError.as_view(tmpl_name="errors/500.jinja")
+_html_server_error = jinja_views.ServerError.as_view(tmpl_name="errors/500.jinja")
+
+
+def handler500(request, *args, **kwargs):
+    if request.path.startswith("/api/"):
+        return json_server_error(request)
+    return _html_server_error(request, *args, **kwargs)
+
 
 urlpatterns = []
 

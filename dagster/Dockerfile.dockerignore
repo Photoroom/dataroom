@@ -1,0 +1,7 @@
+# BuildKit reads this instead of the root .dockerignore, which drops dataroom_client/.
+*
+!dataroom_client/
+!dagster/pyproject.toml
+!dagster/dataroom/
+**/__pycache__
+**/.venv

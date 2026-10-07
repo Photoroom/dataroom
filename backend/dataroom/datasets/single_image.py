@@ -8,7 +8,7 @@ belongs to, so the group set stays at most one-per-image.
 
 from django.db import transaction
 
-from backend.dataroom.datasets.os_sync import sync_single_image_denorm
+from backend.dataroom.datasets.os_sync import recompute_datasets_for_groups, sync_single_image_denorm
 from backend.dataroom.models.dataset import Dataset, DatasetMembership
 from backend.dataroom.models.group import Group, GroupType, GroupTypeRole, Membership, Role
 
@@ -167,3 +167,33 @@ def add_images_to_dataset(dataset: Dataset, image_ids: list[str]) -> int:
     )
     dataset.memberships.filter(group_id__in=changed_group_ids, deleted_at__isnull=True).update(os_synced=True)
     return num_updated
+
+
+def remove_images_from_dataset(dataset: Dataset, image_ids: list[str]) -> int:
+    """Inverse of add_images_to_dataset. Only the dataset membership goes, the per-image
+    group is shared by every dataset the image is in. The OS datasets denorm is written
+    wholesale, so it is recomputed from the remaining memberships after the commit.
+    """
+    image_ids = list(dict.fromkeys(image_ids))
+    with transaction.atomic():
+        group_ids = list(
+            Group.objects.filter(name__in=image_ids, type_id=SINGLE_IMAGE_TYPE, deleted_at__isnull=True).values_list(
+                'id', flat=True
+            )
+        )
+        if not group_ids:
+            return 0
+        num_removed = dataset.remove_groups(group_ids)
+
+    # Only the memberships this call actually soft-deleted are left os_synced=False,
+    # so they name exactly the groups whose images need rewriting.
+    changed = list(
+        DatasetMembership.objects.filter(
+            dataset=dataset, group_id__in=group_ids, deleted_at__isnull=False, os_synced=False
+        ).values_list('group_id', flat=True)
+    )
+    if not changed:
+        return num_removed
+    recompute_datasets_for_groups(changed)
+    DatasetMembership.objects.filter(dataset=dataset, group_id__in=changed).update(os_synced=True)
+    return num_removed

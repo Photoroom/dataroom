@@ -53,7 +53,14 @@ from backend.api.images.serializers import (
 from backend.dataroom.exceptions import LatentTypeValidationError, MissingEmbeddingError, SaveConflictError
 from backend.dataroom.models.attributes import AttributesFieldNotFoundError, AttributesSchema
 from backend.dataroom.models.group import Membership
-from backend.dataroom.models.os_image import OSAttribute, OSAttributes, OSFieldType, OSImage, OSLatent, OSLatents
+from backend.dataroom.models.os_image import (
+    OSAttribute,
+    OSAttributes,
+    OSFieldType,
+    OSImage,
+    OSLatent,
+    OSLatents,
+)
 from backend.dataroom.opensearch import OS, OSBulkIndex
 from backend.dataroom.utils.coca_text_encoder import encode_text as encode_text_local
 from backend.dataroom.utils.fetch_embedding import fetch_coca_embedding_for_text
@@ -315,6 +322,20 @@ class ImageViewSet(ViewSet):
     # the per-shard top-N truncation (and its doc_count_error) disappears entirely.
     FACET_TERMS_SIZE = 50000
 
+    def _numeric_facet_os_field(self, field):
+        """Resolve a numeric facet field to its OpenSearch field, or None if it isn't numeric."""
+        if field in self.NUMERIC_FACET_FIELDS:
+            return field
+        if field.startswith('clf:'):
+            # classifier score: clf:<slug>/<version> -> classifications.<slug>/<version>
+            return f'classifications.{field[4:]}'
+        if field.startswith('attr:'):
+            attr_name = field[5:]
+            os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
+            if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
+                return OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True).os_name
+        return None
+
     @tracer.wrap()
     @extend_schema(parameters=[*os_image_filter_params()])
     @action(detail=False, methods=['get'])
@@ -330,25 +351,28 @@ class ImageViewSet(ViewSet):
         search = self.filter_search(self.get_search(sort='_doc'), exclude_field=exclude_field)
         search = search.extra(size=0)
 
+        # Numeric fields get a stats aggregation here and a histogram in a second query.
+        numeric_agg_fields = {}  # field -> os_field_name
+        for field in requested:
+            os_field = self._numeric_facet_os_field(field)
+            if os_field is not None:
+                numeric_agg_fields[field] = os_field
+
         for field in requested:
             agg_name = field.replace(':', '_')  # safe aggregation key (attr:foo → attr_foo)
-            if field in self.TERMS_FIELDS:
+            if field in numeric_agg_fields:
+                search.aggs.bucket(name=f'{agg_name}_stats', agg_type='stats', field=numeric_agg_fields[field])
+            elif field in self.TERMS_FIELDS:
                 os_field = self.TERMS_FIELDS[field]
                 if os_field is not None:
                     search.aggs.bucket(name=agg_name, agg_type='terms', field=os_field, size=self.FACET_TERMS_SIZE)
-            elif field in self.NUMERIC_FACET_FIELDS:
-                search.aggs.bucket(name=f'{agg_name}_stats', agg_type='stats', field=field)
             elif field.startswith('attr:'):
                 attr_name = field[5:]
                 os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
                 attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True)
-                if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
-                    # Numeric attributes: use stats aggregation (same as NUMERIC_FACET_FIELDS)
-                    search.aggs.bucket(name=f'{agg_name}_stats', agg_type='stats', field=attr.os_name)
-                else:
-                    search.aggs.bucket(
-                        name=agg_name, agg_type='terms', field=attr.os_name_keyword, size=self.FACET_TERMS_SIZE
-                    )
+                search.aggs.bucket(
+                    name=agg_name, agg_type='terms', field=attr.os_name_keyword, size=self.FACET_TERMS_SIZE
+                )
 
         try:
             result = search.execute()
@@ -359,19 +383,6 @@ class ImageViewSet(ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             raise
-
-        # Collect all fields that used stats aggregation (builtins + numeric attrs)
-        # so we can compute histograms and build the right response shape for them.
-        numeric_agg_fields = {}  # field -> os_field_name for histogram
-        for field in requested:
-            if field in self.NUMERIC_FACET_FIELDS:
-                numeric_agg_fields[field] = field
-            elif field.startswith('attr:'):
-                attr_name = field[5:]
-                os_type = AttributesSchema.get_os_type_for_field_name(attr_name)
-                if os_type in (OSFieldType.DOUBLE, OSFieldType.LONG):
-                    attr = OSAttribute(name=attr_name, value=None, os_type=os_type, is_indexed=True)
-                    numeric_agg_fields[field] = attr.os_name
 
         # For numeric fields, compute histogram interval from stats and run a second query
         hist_data = {}  # field -> list of buckets
@@ -657,14 +668,16 @@ class ImageViewSet(ViewSet):
             except OSImage.DoesNotExist:
                 pass
             else:
-                deleted_msg = ' as a deleted image' if same_id_image.is_deleted else ''
-                return Response(
-                    {
-                        'error': f'The provided ID already exists in the database{deleted_msg}. '
-                        'Make sure all your IDs are unique and can trace back to the original image.',
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+                if not same_id_image.is_deleted:
+                    return Response(
+                        {
+                            'error': 'The provided ID already exists in the database. '
+                            'Make sure all your IDs are unique and can trace back to the original image.',
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                # a soft-deleted image holds this ID: purge it so the new image can take its place
+                same_id_image.delete_permanently()
 
             # check if same hash already exists
             image_hash = serializer.validated_data.get('image_hash', None)
@@ -801,8 +814,10 @@ class ImageViewSet(ViewSet):
                 setattr(image, field, value)
 
         if updated_fields:
+            # Forcing a refresh was the slowest step of a batch of latent uploads. Searches catch up within 1s.
+            refresh = updated_fields != ['latents']
             try:
-                image.save(fields=updated_fields, latent_types=latent_types)
+                image.save(fields=updated_fields, latent_types=latent_types, refresh=refresh)
             except SaveConflictError as e:
                 return Response({'error': e.description}, status=status.HTTP_409_CONFLICT)
             except LatentTypeValidationError as e:

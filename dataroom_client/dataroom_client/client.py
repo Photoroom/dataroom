@@ -201,34 +201,27 @@ def _wrap_async_iterable(async_iterable):
             except Exception:  # pragma: no cover - best effort cleanup
                 pass
 
+    async def put(item) -> bool:
+        # Never a blocking q.put: this runs on the shared loop, and blocking it
+        # deadlocks every other client call. False once the consumer is gone.
+        while not stop_flag["stop"]:
+            try:
+                q.put_nowait(item)
+                return True
+            except queue.Full:
+                await asyncio.sleep(0.01)
+        return False
+
     async def producer():
         try:
             async for item in async_iterable:
-                if stop_flag["stop"]:
+                if not await put(item):
                     await aclose_safe(async_iterable)
-                    break
-                while True:
-                    try:
-                        q.put_nowait(item)
-                        break
-                    except queue.Full:
-                        if stop_flag["stop"]:
-                            await aclose_safe(async_iterable)
-                            return
-                        await asyncio.sleep(0.01)
+                    return
         except Exception as e:
-            # pass exception to consumer then terminate
-            try:
-                q.put_nowait(e)
-            except queue.Full:
-                # If full, block briefly in thread to ensure delivery
-                q.put(e)
+            await put(e)
         finally:
-            # Signal completion
-            try:
-                q.put_nowait(sentinel)
-            except queue.Full:
-                q.put(sentinel)
+            await put(sentinel)
 
     # Start the producer without blocking
     AsyncRunner.submit(producer())
@@ -236,7 +229,12 @@ def _wrap_async_iterable(async_iterable):
     def iterator():
         try:
             while True:
-                item = q.get()
+                try:
+                    item = q.get(timeout=AsyncRunner.call_timeout)
+                except queue.Empty:
+                    raise DataRoomError(
+                        f"No next item within {AsyncRunner.call_timeout:.0f}s. {AsyncRunner.loop_stack()}"
+                    ) from None
                 if item is sentinel:
                     break
                 if isinstance(item, Exception):

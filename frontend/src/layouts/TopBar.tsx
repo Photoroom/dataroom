@@ -43,21 +43,28 @@ export const TopBar: React.FC<TopBarProps> = ({ children, rightActions }) => {
 
   const activeNav = location.pathname.startsWith("/datasets")
     ? "datasets"
-    : location.pathname.startsWith("/group-types")
-      ? "group-types"
-      : location.pathname.startsWith("/groups")
-        ? "groups"
-        : "images";
+    : location.pathname.startsWith("/classifiers")
+      ? "classifiers"
+      : location.pathname.startsWith("/group-types")
+        ? "group-types"
+        : location.pathname.startsWith("/groups")
+          ? "groups"
+          : "images";
 
   // Size control: images grid and the groups/datasets LIST grids. The
   // detail routes (/groups/<id>, /datasets/<slug>/<v>) have their own
   // member layout and don't use gridColumns.
   const isGroupDetail = /^\/groups\/[^/]+/.test(location.pathname);
   const isDatasetDetail = /^\/datasets\/[^/]+/.test(location.pathname);
+  // A classifier's annotations view and its annotate workspace ARE the image grid,
+  // so they keep the size control; the classifier LIST is a card grid like the
+  // datasets list.
+  const isClassifierImageGrid = /^\/classifiers\/[^/]+\/[^/]+/.test(location.pathname);
   const showGridControl =
     activeNav === "images" ||
     (activeNav === "groups" && !isGroupDetail) ||
-    (activeNav === "datasets" && !isDatasetDetail);
+    (activeNav === "datasets" && !isDatasetDetail) ||
+    isClassifierImageGrid;
 
   return (
     <div
@@ -75,6 +82,7 @@ export const TopBar: React.FC<TopBarProps> = ({ children, rightActions }) => {
         <nav className="flex flex-row items-center gap-1 shrink-0">
           <NavItem label="Images" to={URLS.IMAGE_LIST()} isActive={activeNav === "images"} />
           <NavItem label="Datasets" to={URLS.DATASET_LIST()} isActive={activeNav === "datasets"} />
+          <NavItem label="Classifiers" to={URLS.CLASSIFIER_LIST()} isActive={activeNav === "classifiers"} />
           <NavItem label="Groups" to={URLS.GROUP_LIST()} isActive={activeNav === "groups"} />
           <NavItem label="Group types" to={URLS.GROUP_TYPE_LIST()} isActive={activeNav === "group-types"} />
         </nav>

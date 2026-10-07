@@ -1,5 +1,6 @@
 volumes:
   dataroom_postgres_data: {}
+  dagster_home: {}
   redis_data: {}
   opensearch_data: {}
   minio_data: {}
@@ -49,6 +50,14 @@ services:
       - ./:/app
     ports:
       - "8000:8000"
+    # reach a Dagster running on the host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      default:
+        # Django rejects Host headers with underscores
+        aliases:
+          - dataroom-django
 
   dataroom_tasks:
     # Local equivalent of the prod `backend-tasks` ECS service: runs the task
@@ -67,6 +76,43 @@ services:
       - minio-init
     volumes:
       - ./:/app
+
+  dataroom_dagster:
+    # Local Dagster serving the dagster/ code location.
+    build:
+      context: .
+      dockerfile: ./dagster/Dockerfile
+      args:
+        EXTRAS: "[dev]"
+    image: dataroom_dagster
+    # torch DataLoader workers share tensors over /dev/shm, the 64MB default is too small
+    shm_size: 1g
+    command: dagster dev -h 0.0.0.0 -p 3000 -m dataroom
+    env_file:
+      - ./.env
+    environment:
+      DAGSTER_HOME: /dagster_home
+      DAGSTER_TELEMETRY_ENABLED: "false"
+      DATAROOM_DEV_API_URL: http://dataroom-django:8000
+      # image URLs point at the host's minio, the container reaches it by service name
+      DATAROOM_REWRITE_HOSTS: localhost:9000=minio:9000
+      # CPU-sized training, prod keeps the code defaults
+      CLASSIFIER_IMAGE_SIZE: "224"
+      CLASSIFIER_TRAIN_ITERATIONS: "100"
+      CLASSIFIER_MODELS_BUCKET: dataroom-local
+      CLASSIFIER_MODELS_PREFIX: dataroom
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+    volumes:
+      - ./dagster:/app
+      - dagster_home:/dagster_home
+    ports:
+      - "3000:3000"
+    depends_on:
+      - dataroom_django
+      - minio-init
 
   dataroom_dogstatsd:
     image: datadog/agent
