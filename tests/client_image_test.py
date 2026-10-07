@@ -117,6 +117,7 @@ async def test_get_images_all_fields(DataRoom, os_image):
         'related_images',
         'datasets',
         'memberships',
+        'classifications',
     ]
 
 
@@ -301,16 +302,21 @@ async def test_delete_image(DataRoom, image_logo, image_girl):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db
-async def test_cant_reuse_id_of_deleted_image(DataRoom, tests_path, image_logo):
+async def test_reuse_id_of_deleted_image_purges_it(DataRoom, tests_path, image_logo):
     image_file = DataRoomFile.from_path(tests_path / 'images/logo.png')
 
     await DataRoom.delete_image(image_id=image_logo.id)
     images = await DataRoom.get_images()
     assert len(images) == 0
 
-    with pytest.raises(DataRoomError) as excinfo:
-        await DataRoom.create_image(image_id=image_logo.id, image_file=image_file, source='test')
-    assert 'The provided ID already exists in the database as a deleted image' in str(excinfo.value)
+    # creating with the ID of a soft-deleted image purges the old one and succeeds
+    image = await DataRoom.create_image(image_id=image_logo.id, image_file=image_file, source='test')
+    assert image['id'] == str(image_logo.id)
+
+    all = await sync_to_async(OSImage.all_objects.all)()
+    assert len(all) == 1
+    assert all[0].id == str(image_logo.id)
+    assert not all[0].is_deleted
 
 
 @pytest.mark.asyncio

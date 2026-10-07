@@ -87,19 +87,15 @@ def test_url_changes_across_days():
     assert monday != tuesday
 
 
-def test_restores_patched_datetime_modules_after_use():
-    # The fast path swaps module-level datetime references during signing; they must be
-    # restored afterwards so nothing else in the process sees a frozen clock.
-    auth_before = botocore.auth.datetime
-    s3_before = s3_storage.datetime
-
+def test_the_clock_is_only_frozen_inside_the_context():
+    # The patched clock stays installed for the life of the process; outside the
+    # context it must report the real time, so nothing else sees a frozen clock.
     with freeze_time('2026-06-15 08:00:00'):
         with stable_signing_time():
-            assert botocore.auth.datetime is not auth_before
-            assert s3_storage.datetime is not s3_before
-
-    assert botocore.auth.datetime is auth_before
-    assert s3_storage.datetime is s3_before
+            assert botocore.auth.datetime.datetime.utcnow() == datetime.datetime(2026, 6, 15, 0, 0, 0)
+            assert s3_storage.datetime.utcnow() == datetime.datetime(2026, 6, 15, 0, 0, 0)
+        assert botocore.auth.datetime.datetime.utcnow() == datetime.datetime(2026, 6, 15, 8, 0, 0)
+        assert s3_storage.datetime.utcnow() == datetime.datetime(2026, 6, 15, 8, 0, 0)
 
 
 def test_cloudfront_signed_url_is_valid_until_end_of_tomorrow():
@@ -130,3 +126,33 @@ def test_filesystem_storage_accepts_expire():
     storage = OverwriteStorage()
     url = storage.url('image.jpg', expire=STABLE_URL_VALID_SECONDS)
     assert url.endswith('image.jpg')
+
+
+def test_a_concurrent_request_outside_the_context_signs_with_the_real_time():
+    """The frozen clock is per thread: a request signing a real upload while another
+    request mints stable URLs must not be stamped midnight (S3: RequestTimeTooSkewed)."""
+    import threading
+
+    storage = _s3_storage()
+    inside = threading.Event()
+    release = threading.Event()
+    other: dict = {}
+
+    def mint_stable_urls():
+        with stable_signing_time():
+            inside.set()
+            release.wait(5)
+
+    def sign_outside():
+        inside.wait(5)
+        other['url'] = storage.url('upload.npy', expire=60)
+        release.set()
+
+    with freeze_time('2026-06-15 19:23:00'):
+        threads = [threading.Thread(target=mint_stable_urls), threading.Thread(target=sign_outside)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(10)
+
+    assert _params(other['url'])['X-Amz-Date'] == '20260615T192300Z'

@@ -13,9 +13,19 @@ interface ImageProps {
   onToggleSelected?: (isMultiSelect: boolean) => void;
   className?: string;
   label?: string;
+  // Small top-left overlay, e.g. "already a positive annotation of this classifier".
+  badge?: React.ReactNode;
 }
 
-export const Image: React.FC<ImageProps> = ({ image, selectMode, isSelected, onToggleSelected, className, label }) => {
+export const Image: React.FC<ImageProps> = ({
+  image,
+  selectMode,
+  isSelected,
+  onToggleSelected,
+  className,
+  label,
+  badge,
+}) => {
   const [searchParams] = useSearchParams();
   const { setModeSimilarImage } = useImageListData();
   const navigate = useNavigate();
@@ -94,6 +104,7 @@ export const Image: React.FC<ImageProps> = ({ image, selectMode, isSelected, onT
       className={twMerge("w-full aspect-square rounded-lg bg-black/8 dark:bg-white/8", className)}
     >
       <div className={twMerge("group block w-full h-full cursor-pointer relative")}>
+        {badge && <span className="absolute z-10 top-1.5 left-1.5">{badge}</span>}
         {/* Selected indicator: bold when in select mode, subtle when not */}
         {isSelected && (
           <span

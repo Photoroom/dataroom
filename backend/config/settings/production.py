@@ -3,6 +3,8 @@ from .deployed import *  # noqa: F403
 # Settings for the production ECS deployment.
 # Everything shared with the other deployed environments lives in deployed.py.
 
+DEPLOYMENT_ENV = 'prod'
+
 # STORAGES
 # ------------------------------------------------------------------------------
 # Unlike the other environments, the AWS credentials are required rather than

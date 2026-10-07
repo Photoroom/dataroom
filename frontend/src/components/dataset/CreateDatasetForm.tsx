@@ -6,6 +6,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { URLS } from "../../urls";
 
+// lowercase, dashes only, max 32 chars to keep URLs short
+export const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 32);
+
 interface CreateDatasetFormProps {
   onSuccess?: () => void;
 }
@@ -22,15 +31,6 @@ export const CreateDatasetForm: React.FC<CreateDatasetFormProps> = ({ onSuccess 
 
   const { data: groupTypes } = useGroupTypesList({ page_size: 100 });
   const types = groupTypes?.results ?? [];
-
-  // Auto-generate slug from name: lowercase, dashes only, max 32 chars to keep URLs short
-  const slugify = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 32);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);

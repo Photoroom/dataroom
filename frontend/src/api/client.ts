@@ -26,6 +26,23 @@ import type {
 
 import type {
   AttributeField,
+  Classifier,
+  ClassifierApply,
+  ClassifierApplyRun,
+  ClassifierApplyRunReport,
+  ClassifierCreate,
+  ClassifierHoldout,
+  ClassifierHoldoutResponse,
+  ClassifierLabel,
+  ClassifierLabelResponse,
+  ClassifierNewVersion,
+  ClassifierScores,
+  ClassifierTrain,
+  ClassifierTraining,
+  ClassifierTrainingReport,
+  ClassifiersListParams,
+  ClassifiersRunsListParams,
+  ClassifiersTrainingsListParams,
   Count,
   Dataset,
   DatasetAddImages,
@@ -65,6 +82,7 @@ import type {
   OSImageCreate,
   OSImageSegmentation,
   OSImageUpdate,
+  PaginatedClassifierList,
   PaginatedDatasetList,
   PaginatedGroupList,
   PaginatedGroupTypeList,
@@ -75,6 +93,7 @@ import type {
   PaginatedRoleList,
   PaginatedTagList,
   PaginatedTokenList,
+  PatchedClassifier,
   PatchedDataset,
   PatchedGroup,
   PatchedQueryCreateUpdate,
@@ -142,6 +161,1397 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersList = (
+    params?: ClassifiersListParams,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<PaginatedClassifierList>(
+      {url: `/api/classifiers/`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+  
+
+
+
+export const getClassifiersListQueryKey = (params?: ClassifiersListParams,) => {
+    return [
+    `/api/classifiers/`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getClassifiersListQueryOptions = <TData = Awaited<ReturnType<typeof classifiersList>>, TError = unknown>(params?: ClassifiersListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifiersListQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifiersList>>> = ({ signal }) => classifiersList(params, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn,   retry: (failureCount, error) => {
+              // Type guard for axios error
+              if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+                const status = error.response.status;
+                if (status === 404 || status === 403) {
+                  // Fail fast on 404 and 403
+                  return false;
+                }
+              }
+              return failureCount < 2;
+            },  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ClassifiersListQueryResult = NonNullable<Awaited<ReturnType<typeof classifiersList>>>
+export type ClassifiersListQueryError = unknown
+
+
+export function useClassifiersList<TData = Awaited<ReturnType<typeof classifiersList>>, TError = unknown>(
+ params: undefined |  ClassifiersListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersList<TData = Awaited<ReturnType<typeof classifiersList>>, TError = unknown>(
+ params?: ClassifiersListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersList<TData = Awaited<ReturnType<typeof classifiersList>>, TError = unknown>(
+ params?: ClassifiersListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useClassifiersList<TData = Awaited<ReturnType<typeof classifiersList>>, TError = unknown>(
+ params?: ClassifiersListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getClassifiersListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersCreate = (
+    classifierCreate: NonReadonly<ClassifierCreate>,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierCreate>(
+      {url: `/api/classifiers/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierCreate, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersCreate>>, TError,{data: NonReadonly<ClassifierCreate>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersCreate>>, TError,{data: NonReadonly<ClassifierCreate>}, TContext> => {
+
+const mutationKey = ['classifiersCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersCreate>>, {data: NonReadonly<ClassifierCreate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  classifiersCreate(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersCreate>>>
+    export type ClassifiersCreateMutationBody = NonReadonly<ClassifierCreate>
+    export type ClassifiersCreateMutationError = unknown
+
+    export const useClassifiersCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersCreate>>, TError,{data: NonReadonly<ClassifierCreate>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersCreate>>,
+        TError,
+        {data: NonReadonly<ClassifierCreate>},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersRetrieve = (
+    slugVersion: string,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<Classifier>(
+      {url: `/api/classifiers/${slugVersion}/`, method: 'GET', signal
+    },
+      options);
+    }
+  
+
+
+
+export const getClassifiersRetrieveQueryKey = (slugVersion?: string,) => {
+    return [
+    `/api/classifiers/${slugVersion}/`
+    ] as const;
+    }
+
+    
+export const getClassifiersRetrieveQueryOptions = <TData = Awaited<ReturnType<typeof classifiersRetrieve>>, TError = unknown>(slugVersion: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifiersRetrieveQueryKey(slugVersion);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifiersRetrieve>>> = ({ signal }) => classifiersRetrieve(slugVersion, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(slugVersion),  retry: (failureCount, error) => {
+              // Type guard for axios error
+              if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+                const status = error.response.status;
+                if (status === 404 || status === 403) {
+                  // Fail fast on 404 and 403
+                  return false;
+                }
+              }
+              return failureCount < 2;
+            },  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ClassifiersRetrieveQueryResult = NonNullable<Awaited<ReturnType<typeof classifiersRetrieve>>>
+export type ClassifiersRetrieveQueryError = unknown
+
+
+export function useClassifiersRetrieve<TData = Awaited<ReturnType<typeof classifiersRetrieve>>, TError = unknown>(
+ slugVersion: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersRetrieve>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersRetrieve<TData = Awaited<ReturnType<typeof classifiersRetrieve>>, TError = unknown>(
+ slugVersion: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersRetrieve>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersRetrieve<TData = Awaited<ReturnType<typeof classifiersRetrieve>>, TError = unknown>(
+ slugVersion: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useClassifiersRetrieve<TData = Awaited<ReturnType<typeof classifiersRetrieve>>, TError = unknown>(
+ slugVersion: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRetrieve>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getClassifiersRetrieveQueryOptions(slugVersion,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersUpdate = (
+    slugVersion: string,
+    classifier: NonReadonly<Classifier>,
+ options?: SecondParameter<typeof axiosInstance>,) => {
+      
+      
+      return axiosInstance<Classifier>(
+      {url: `/api/classifiers/${slugVersion}/`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: classifier
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersUpdateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersUpdate>>, TError,{slugVersion: string;data: NonReadonly<Classifier>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersUpdate>>, TError,{slugVersion: string;data: NonReadonly<Classifier>}, TContext> => {
+
+const mutationKey = ['classifiersUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersUpdate>>, {slugVersion: string;data: NonReadonly<Classifier>}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersUpdate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersUpdate>>>
+    export type ClassifiersUpdateMutationBody = NonReadonly<Classifier>
+    export type ClassifiersUpdateMutationError = unknown
+
+    export const useClassifiersUpdate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersUpdate>>, TError,{slugVersion: string;data: NonReadonly<Classifier>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersUpdate>>,
+        TError,
+        {slugVersion: string;data: NonReadonly<Classifier>},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersUpdateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersPartialUpdate = (
+    slugVersion: string,
+    patchedClassifier: NonReadonly<PatchedClassifier>,
+ options?: SecondParameter<typeof axiosInstance>,) => {
+      
+      
+      return axiosInstance<Classifier>(
+      {url: `/api/classifiers/${slugVersion}/`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: patchedClassifier
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersPartialUpdateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersPartialUpdate>>, TError,{slugVersion: string;data: NonReadonly<PatchedClassifier>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersPartialUpdate>>, TError,{slugVersion: string;data: NonReadonly<PatchedClassifier>}, TContext> => {
+
+const mutationKey = ['classifiersPartialUpdate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersPartialUpdate>>, {slugVersion: string;data: NonReadonly<PatchedClassifier>}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersPartialUpdate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersPartialUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersPartialUpdate>>>
+    export type ClassifiersPartialUpdateMutationBody = NonReadonly<PatchedClassifier>
+    export type ClassifiersPartialUpdateMutationError = unknown
+
+    export const useClassifiersPartialUpdate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersPartialUpdate>>, TError,{slugVersion: string;data: NonReadonly<PatchedClassifier>}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersPartialUpdate>>,
+        TError,
+        {slugVersion: string;data: NonReadonly<PatchedClassifier>},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersPartialUpdateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Versioned binary classifier definitions: the example sets to train on.
+
+A classifier names the ``single_image`` Datasets holding its positive and
+negative examples; those datasets can be labelled directly, and the ``label``
+action here does it as one decision per image instead of two independent
+dataset edits. Looked up by ``slug/version``, like datasets — POSTing an
+existing slug creates the next version rather than a second classifier.
+ */
+export const classifiersDestroy = (
+    slugVersion: string,
+ options?: SecondParameter<typeof axiosInstance>,) => {
+      
+      
+      return axiosInstance<void>(
+      {url: `/api/classifiers/${slugVersion}/`, method: 'DELETE'
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersDestroyMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersDestroy>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersDestroy>>, TError,{slugVersion: string}, TContext> => {
+
+const mutationKey = ['classifiersDestroy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersDestroy>>, {slugVersion: string}> = (props) => {
+          const {slugVersion} = props ?? {};
+
+          return  classifiersDestroy(slugVersion,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersDestroyMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersDestroy>>>
+    
+    export type ClassifiersDestroyMutationError = unknown
+
+    export const useClassifiersDestroy = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersDestroy>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersDestroy>>,
+        TError,
+        {slugVersion: string},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersDestroyMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Score a target with a trained model of this version.
+
+The service pulls the target's images, scores each, and writes
+``classifications["<slug>/<version>"] = score`` onto the image
+documents in batches, updating ``processed``/``total`` here as it
+goes.
+ */
+export const classifiersApplyCreate = (
+    slugVersion: string,
+    classifierApply: ClassifierApply,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierApplyRun>(
+      {url: `/api/classifiers/${slugVersion}/apply/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierApply, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersApplyCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersApplyCreate>>, TError,{slugVersion: string;data: ClassifierApply}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersApplyCreate>>, TError,{slugVersion: string;data: ClassifierApply}, TContext> => {
+
+const mutationKey = ['classifiersApplyCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersApplyCreate>>, {slugVersion: string;data: ClassifierApply}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersApplyCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersApplyCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersApplyCreate>>>
+    export type ClassifiersApplyCreateMutationBody = ClassifierApply
+    export type ClassifiersApplyCreateMutationError = unknown
+
+    export const useClassifiersApplyCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersApplyCreate>>, TError,{slugVersion: string;data: ClassifierApply}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersApplyCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierApply},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersApplyCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Choose which examples training must not learn from.
+
+A held-out image stays on its side — it is added to a third dataset
+that means "do not train on this". So this never changes what an image
+IS to the classifier, only whether the model gets to see it, and the
+side an image is held out on always agrees with the side it is labelled
+on because there is only one place either is recorded.
+
+``random`` re-draws the whole set at the given fraction; ``manual``
+adds or removes named images, which is how a draw gets corrected.
+``random`` + ``preview`` returns the draw without writing it, so it can
+be shown and adjusted first; ``manual`` + ``replace`` then commits the
+adjusted draw as one choice rather than adding it to the last one.
+
+Only the main datasets are drawn from. Borrowed extras belong to
+whoever curates them and can change underneath this classifier, and a
+validation set that moves on someone else's schedule measures nothing
+reliable.
+ */
+export const classifiersHoldoutCreate = (
+    slugVersion: string,
+    classifierHoldout: ClassifierHoldout,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierHoldoutResponse>(
+      {url: `/api/classifiers/${slugVersion}/holdout/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierHoldout, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersHoldoutCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersHoldoutCreate>>, TError,{slugVersion: string;data: ClassifierHoldout}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersHoldoutCreate>>, TError,{slugVersion: string;data: ClassifierHoldout}, TContext> => {
+
+const mutationKey = ['classifiersHoldoutCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersHoldoutCreate>>, {slugVersion: string;data: ClassifierHoldout}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersHoldoutCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersHoldoutCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersHoldoutCreate>>>
+    export type ClassifiersHoldoutCreateMutationBody = ClassifierHoldout
+    export type ClassifiersHoldoutCreateMutationError = unknown
+
+    export const useClassifiersHoldoutCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersHoldoutCreate>>, TError,{slugVersion: string;data: ClassifierHoldout}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersHoldoutCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierHoldout},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersHoldoutCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Put images on one side of this classifier — and only that side.
+
+Positive and negative are one decision, not two memberships: an image
+labelled negative here leaves the positive set in the same call. Writing
+the two datasets independently is what let an image sit in both, which
+means training saw the same embedding as an example of the class and a
+counter-example of it.
+
+``side: none`` is the way back out: the image leaves both sets and this
+classifier has no opinion on it again.
+
+Only the main datasets are touched. Borrowed extras belong to whoever
+curates them, so a label here never edits someone else's dataset — an
+image can still be positive through an extra set and negative here.
+ */
+export const classifiersLabelCreate = (
+    slugVersion: string,
+    classifierLabel: ClassifierLabel,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierLabelResponse>(
+      {url: `/api/classifiers/${slugVersion}/label/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierLabel, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersLabelCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersLabelCreate>>, TError,{slugVersion: string;data: ClassifierLabel}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersLabelCreate>>, TError,{slugVersion: string;data: ClassifierLabel}, TContext> => {
+
+const mutationKey = ['classifiersLabelCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersLabelCreate>>, {slugVersion: string;data: ClassifierLabel}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersLabelCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersLabelCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersLabelCreate>>>
+    export type ClassifiersLabelCreateMutationBody = ClassifierLabel
+    export type ClassifiersLabelCreateMutationError = unknown
+
+    export const useClassifiersLabelCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersLabelCreate>>, TError,{slugVersion: string;data: ClassifierLabel}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersLabelCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierLabel},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersLabelCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Make this version final: freeze it AND its example datasets.
+
+Freezing the classifier row alone would not lock anything that matters —
+the examples live in datasets, and labelling would keep changing what
+this version means. Freezing the datasets too is what makes a locked
+version a fixed record: the dataset API already refuses to add images to
+a frozen dataset.
+ */
+export const classifiersLockCreate = (
+    slugVersion: string,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<void>(
+      {url: `/api/classifiers/${slugVersion}/lock/`, method: 'POST', signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersLockCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersLockCreate>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersLockCreate>>, TError,{slugVersion: string}, TContext> => {
+
+const mutationKey = ['classifiersLockCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersLockCreate>>, {slugVersion: string}> = (props) => {
+          const {slugVersion} = props ?? {};
+
+          return  classifiersLockCreate(slugVersion,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersLockCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersLockCreate>>>
+    
+    export type ClassifiersLockCreateMutationError = unknown
+
+    export const useClassifiersLockCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersLockCreate>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersLockCreate>>,
+        TError,
+        {slugVersion: string},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersLockCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Carry on from this version in a fresh, editable one.
+
+The new version gets its own main example datasets: by default copies of
+this version's (a new version of each, holding the same images), so
+labelling continues without touching what the source froze. Pass
+``copy_examples: false`` to start them empty instead, for relabelling
+from scratch while keeping the classifier's history.
+
+Additional datasets come along as references by default. Pass
+``extra_pos_datasets``/``extra_neg_datasets`` to carry only some of them
+over — a subset of what this version has, ``[]`` for none — which is how
+a new version drops a borrowed set it no longer wants to train on.
+
+Either way the source keeps exactly what it had, which is the point of
+locking: v1 goes on meaning what it meant, v2 is where work continues.
+ */
+export const classifiersNewVersionCreate = (
+    slugVersion: string,
+    classifierNewVersion: ClassifierNewVersion,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<Classifier>(
+      {url: `/api/classifiers/${slugVersion}/new-version/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierNewVersion, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersNewVersionCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersNewVersionCreate>>, TError,{slugVersion: string;data: ClassifierNewVersion}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersNewVersionCreate>>, TError,{slugVersion: string;data: ClassifierNewVersion}, TContext> => {
+
+const mutationKey = ['classifiersNewVersionCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersNewVersionCreate>>, {slugVersion: string;data: ClassifierNewVersion}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersNewVersionCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersNewVersionCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersNewVersionCreate>>>
+    export type ClassifiersNewVersionCreateMutationBody = ClassifierNewVersion
+    export type ClassifiersNewVersionCreateMutationError = unknown
+
+    export const useClassifiersNewVersionCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersNewVersionCreate>>, TError,{slugVersion: string;data: ClassifierNewVersion}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersNewVersionCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierNewVersion},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersNewVersionCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * This version's apply runs, newest first — the Apply tab.
+ */
+export const classifiersRunsList = (
+    slugVersion: string,
+    params?: ClassifiersRunsListParams,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierApplyRun[]>(
+      {url: `/api/classifiers/${slugVersion}/runs/`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+  
+
+
+
+export const getClassifiersRunsListQueryKey = (slugVersion?: string,
+    params?: ClassifiersRunsListParams,) => {
+    return [
+    `/api/classifiers/${slugVersion}/runs/`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getClassifiersRunsListQueryOptions = <TData = Awaited<ReturnType<typeof classifiersRunsList>>, TError = unknown>(slugVersion: string,
+    params?: ClassifiersRunsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifiersRunsListQueryKey(slugVersion,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifiersRunsList>>> = ({ signal }) => classifiersRunsList(slugVersion,params, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(slugVersion),  retry: (failureCount, error) => {
+              // Type guard for axios error
+              if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+                const status = error.response.status;
+                if (status === 404 || status === 403) {
+                  // Fail fast on 404 and 403
+                  return false;
+                }
+              }
+              return failureCount < 2;
+            },  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ClassifiersRunsListQueryResult = NonNullable<Awaited<ReturnType<typeof classifiersRunsList>>>
+export type ClassifiersRunsListQueryError = unknown
+
+
+export function useClassifiersRunsList<TData = Awaited<ReturnType<typeof classifiersRunsList>>, TError = unknown>(
+ slugVersion: string,
+    params: undefined |  ClassifiersRunsListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersRunsList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersRunsList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersRunsList<TData = Awaited<ReturnType<typeof classifiersRunsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersRunsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersRunsList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersRunsList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersRunsList<TData = Awaited<ReturnType<typeof classifiersRunsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersRunsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useClassifiersRunsList<TData = Awaited<ReturnType<typeof classifiersRunsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersRunsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersRunsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getClassifiersRunsListQueryOptions(slugVersion,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * The classifier service's callback: apply-run progress and outcome.
+ */
+export const classifiersRunsReportCreate = (
+    slugVersion: string,
+    runId: string,
+    classifierApplyRunReport: ClassifierApplyRunReport,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierApplyRun>(
+      {url: `/api/classifiers/${slugVersion}/runs/${runId}/report/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierApplyRunReport, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersRunsReportCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersRunsReportCreate>>, TError,{slugVersion: string;runId: string;data: ClassifierApplyRunReport}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersRunsReportCreate>>, TError,{slugVersion: string;runId: string;data: ClassifierApplyRunReport}, TContext> => {
+
+const mutationKey = ['classifiersRunsReportCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersRunsReportCreate>>, {slugVersion: string;runId: string;data: ClassifierApplyRunReport}> = (props) => {
+          const {slugVersion,runId,data} = props ?? {};
+
+          return  classifiersRunsReportCreate(slugVersion,runId,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersRunsReportCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersRunsReportCreate>>>
+    export type ClassifiersRunsReportCreateMutationBody = ClassifierApplyRunReport
+    export type ClassifiersRunsReportCreateMutationError = unknown
+
+    export const useClassifiersRunsReportCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersRunsReportCreate>>, TError,{slugVersion: string;runId: string;data: ClassifierApplyRunReport}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersRunsReportCreate>>,
+        TError,
+        {slugVersion: string;runId: string;data: ClassifierApplyRunReport},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersRunsReportCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Write a batch of this classifier's scores onto image documents.
+
+Each image gets ``classifications["<slug>/<version>"] = score``; other
+classifiers' scores on the same image are untouched (the write is an
+object merge). Unknown image ids are skipped and reported back — the
+target may have changed since the run started, which should not sink
+the whole batch.
+ */
+export const classifiersScoresCreate = (
+    slugVersion: string,
+    classifierScores: ClassifierScores,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<void>(
+      {url: `/api/classifiers/${slugVersion}/scores/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierScores, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersScoresCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersScoresCreate>>, TError,{slugVersion: string;data: ClassifierScores}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersScoresCreate>>, TError,{slugVersion: string;data: ClassifierScores}, TContext> => {
+
+const mutationKey = ['classifiersScoresCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersScoresCreate>>, {slugVersion: string;data: ClassifierScores}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersScoresCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersScoresCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersScoresCreate>>>
+    export type ClassifiersScoresCreateMutationBody = ClassifierScores
+    export type ClassifiersScoresCreateMutationError = unknown
+
+    export const useClassifiersScoresCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersScoresCreate>>, TError,{slugVersion: string;data: ClassifierScores}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersScoresCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierScores},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersScoresCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Train a model on this version's examples, on the classifier service.
+
+The service (a Dagster deployment) pulls the example datasets back out
+of this API, trains in the classifier's embedding space, and reports
+onto the training record it was given — ``training`` here becomes
+``trained`` (with a model reference and metrics) or ``failed``.
+
+Training an unchanged classifier is a no-op by default: if a trained
+model already exists for the current example counts, that training is
+returned instead of computing the same model again. ``force: true``
+trains anyway.
+ */
+export const classifiersTrainCreate = (
+    slugVersion: string,
+    classifierTrain: ClassifierTrain,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierTraining>(
+      {url: `/api/classifiers/${slugVersion}/train/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierTrain, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersTrainCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainCreate>>, TError,{slugVersion: string;data: ClassifierTrain}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainCreate>>, TError,{slugVersion: string;data: ClassifierTrain}, TContext> => {
+
+const mutationKey = ['classifiersTrainCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersTrainCreate>>, {slugVersion: string;data: ClassifierTrain}> = (props) => {
+          const {slugVersion,data} = props ?? {};
+
+          return  classifiersTrainCreate(slugVersion,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersTrainCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersTrainCreate>>>
+    export type ClassifiersTrainCreateMutationBody = ClassifierTrain
+    export type ClassifiersTrainCreateMutationError = unknown
+
+    export const useClassifiersTrainCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainCreate>>, TError,{slugVersion: string;data: ClassifierTrain}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersTrainCreate>>,
+        TError,
+        {slugVersion: string;data: ClassifierTrain},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersTrainCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * This version's training runs, newest first — the Training tab.
+ */
+export const classifiersTrainingsList = (
+    slugVersion: string,
+    params?: ClassifiersTrainingsListParams,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierTraining[]>(
+      {url: `/api/classifiers/${slugVersion}/trainings/`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+  
+
+
+
+export const getClassifiersTrainingsListQueryKey = (slugVersion?: string,
+    params?: ClassifiersTrainingsListParams,) => {
+    return [
+    `/api/classifiers/${slugVersion}/trainings/`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getClassifiersTrainingsListQueryOptions = <TData = Awaited<ReturnType<typeof classifiersTrainingsList>>, TError = unknown>(slugVersion: string,
+    params?: ClassifiersTrainingsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getClassifiersTrainingsListQueryKey(slugVersion,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof classifiersTrainingsList>>> = ({ signal }) => classifiersTrainingsList(slugVersion,params, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(slugVersion),  retry: (failureCount, error) => {
+              // Type guard for axios error
+              if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+                const status = error.response.status;
+                if (status === 404 || status === 403) {
+                  // Fail fast on 404 and 403
+                  return false;
+                }
+              }
+              return failureCount < 2;
+            },  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ClassifiersTrainingsListQueryResult = NonNullable<Awaited<ReturnType<typeof classifiersTrainingsList>>>
+export type ClassifiersTrainingsListQueryError = unknown
+
+
+export function useClassifiersTrainingsList<TData = Awaited<ReturnType<typeof classifiersTrainingsList>>, TError = unknown>(
+ slugVersion: string,
+    params: undefined |  ClassifiersTrainingsListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersTrainingsList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersTrainingsList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersTrainingsList<TData = Awaited<ReturnType<typeof classifiersTrainingsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersTrainingsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof classifiersTrainingsList>>,
+          TError,
+          Awaited<ReturnType<typeof classifiersTrainingsList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useClassifiersTrainingsList<TData = Awaited<ReturnType<typeof classifiersTrainingsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersTrainingsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useClassifiersTrainingsList<TData = Awaited<ReturnType<typeof classifiersTrainingsList>>, TError = unknown>(
+ slugVersion: string,
+    params?: ClassifiersTrainingsListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof classifiersTrainingsList>>, TError, TData>>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getClassifiersTrainingsListQueryOptions(slugVersion,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * The classifier service's callback: the terminal state of a training.
+ */
+export const classifiersTrainingsReportCreate = (
+    slugVersion: string,
+    trainingId: string,
+    classifierTrainingReport: ClassifierTrainingReport,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<ClassifierTraining>(
+      {url: `/api/classifiers/${slugVersion}/trainings/${trainingId}/report/`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: classifierTrainingReport, signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersTrainingsReportCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>, TError,{slugVersion: string;trainingId: string;data: ClassifierTrainingReport}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>, TError,{slugVersion: string;trainingId: string;data: ClassifierTrainingReport}, TContext> => {
+
+const mutationKey = ['classifiersTrainingsReportCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>, {slugVersion: string;trainingId: string;data: ClassifierTrainingReport}> = (props) => {
+          const {slugVersion,trainingId,data} = props ?? {};
+
+          return  classifiersTrainingsReportCreate(slugVersion,trainingId,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersTrainingsReportCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>>
+    export type ClassifiersTrainingsReportCreateMutationBody = ClassifierTrainingReport
+    export type ClassifiersTrainingsReportCreateMutationError = unknown
+
+    export const useClassifiersTrainingsReportCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>, TError,{slugVersion: string;trainingId: string;data: ClassifierTrainingReport}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersTrainingsReportCreate>>,
+        TError,
+        {slugVersion: string;trainingId: string;data: ClassifierTrainingReport},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersTrainingsReportCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
+/**
+ * Undo a lock, on the classifier and its example datasets.
+ */
+export const classifiersUnlockCreate = (
+    slugVersion: string,
+ options?: SecondParameter<typeof axiosInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return axiosInstance<void>(
+      {url: `/api/classifiers/${slugVersion}/unlock/`, method: 'POST', signal
+    },
+      options);
+    }
+  
+
+
+export const getClassifiersUnlockCreateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersUnlockCreate>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof classifiersUnlockCreate>>, TError,{slugVersion: string}, TContext> => {
+
+const mutationKey = ['classifiersUnlockCreate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof classifiersUnlockCreate>>, {slugVersion: string}> = (props) => {
+          const {slugVersion} = props ?? {};
+
+          return  classifiersUnlockCreate(slugVersion,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClassifiersUnlockCreateMutationResult = NonNullable<Awaited<ReturnType<typeof classifiersUnlockCreate>>>
+    
+    export type ClassifiersUnlockCreateMutationError = unknown
+
+    export const useClassifiersUnlockCreate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof classifiersUnlockCreate>>, TError,{slugVersion: string}, TContext>, request?: SecondParameter<typeof axiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof classifiersUnlockCreate>>,
+        TError,
+        {slugVersion: string},
+        TContext
+      > => {
+
+      const mutationOptions = getClassifiersUnlockCreateMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    
 /**
  * Versioned collections of Groups of one immutable GroupType, stored in
 Postgres. Looked up by ``slug/version``, with freeze/unfreeze and a

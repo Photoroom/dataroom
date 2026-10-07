@@ -58,9 +58,9 @@ class RelatedOSImagesField(serializers.DictField):
             raise serializers.ValidationError(str(e)) from e
 
 
-class CocaEmbeddingVectorField(serializers.ModelField):
-    def __init__(self, **kwargs):
-        super().__init__(model_field=VectorField(dimensions=768), **kwargs)
+class EmbeddingVectorField(serializers.ModelField):
+    def __init__(self, dimensions=768, **kwargs):
+        super().__init__(model_field=VectorField(dimensions=dimensions), **kwargs)
         self.validators.append(VectorRegexValidator())
         self.validators.append(NormalizedVectorValidator())
 

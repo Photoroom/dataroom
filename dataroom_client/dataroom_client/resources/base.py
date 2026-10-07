@@ -41,13 +41,13 @@ def get_attributes_filter(attributes: dict | None) -> str | None:
     return attrs_str
 
 
-def validate_vector(vector: str) -> None:
-    err_msg = "Argument vector must be a string representing a list of 768 floats."
+def validate_vector(vector: str, dimensions: int = 768) -> None:
+    err_msg = f"Argument vector must be a string representing a list of {dimensions} floats."
     if not isinstance(vector, str) or not len(vector) > 0:
         raise DataRoomError(f"{err_msg} Not a string.")
     if vector[0] != "[" or vector[-1] != "]":
         raise DataRoomError(f"{err_msg} Not a list.")
-    if len(vector[1:-1].split(',')) != 768:
+    if len(vector[1:-1].split(',')) != dimensions:
         raise DataRoomError(f"{err_msg} Incorrect length.")
 
 

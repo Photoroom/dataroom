@@ -5,7 +5,7 @@ from rest_framework import serializers
 from backend.api.images.fields import (
     AttributesJSONField,
     AttributesPartialJSONField,
-    CocaEmbeddingVectorField,
+    EmbeddingVectorField,
     ImageIdField,
     LatentTypeField,
     OSImageDatasetsField,
@@ -24,7 +24,7 @@ class OSImageLatentSerializer(serializers.Serializer):
     is_mask = serializers.BooleanField(required=False)
 
 
-class OSImageCocaEmbeddingSerializer(serializers.Serializer):
+class OSImageEmbeddingSerializer(serializers.Serializer):
     vector = serializers.ListField(child=serializers.FloatField(), required=False, allow_null=True)
     author = serializers.CharField(required=False, allow_null=True)
 
@@ -49,7 +49,7 @@ class OSImageSerializer(serializers.Serializer):
     thumbnail_error = serializers.BooleanField(required=False, allow_null=True)
     original_url = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     tags = serializers.ListField(child=TagNameField(), required=False, allow_empty=True)
-    coca_embedding = OSImageCocaEmbeddingSerializer(required=False, allow_null=True)
+    coca_embedding = OSImageEmbeddingSerializer(required=False, allow_null=True)
     latents = OSImageLatentSerializer(required=False, many=True)
     attributes = serializers.JSONField(required=False)
     duplicate_state = serializers.IntegerField(required=False, allow_null=True)
@@ -58,6 +58,8 @@ class OSImageSerializer(serializers.Serializer):
     # Group membership denorm. Each entry is ``<role>::<type>::<uuid>``.
     # See backend/dataroom/groups/os_sync.py for the encoding.
     memberships = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    # keyed by classifier slug/version, opt-in via include_fields
+    classifications = serializers.DictField(child=serializers.FloatField(), required=False)
 
 
 @extend_schema_serializer(many=False)
@@ -303,7 +305,7 @@ class OSImageUpdateSerializer(RejectDatasetsWriteMixin, serializers.Serializer):
     attributes = AttributesJSONField(required=False)
     latents = ImageLatentCreateSerializer(required=False, many=True)
     tags = serializers.ListField(child=TagNameField(), required=False, allow_empty=True, write_only=True)
-    coca_embedding = CocaEmbeddingVectorField(required=False, allow_null=False)
+    coca_embedding = EmbeddingVectorField(required=False, allow_null=False)
     related_images = RelatedOSImagesField(required=False, allow_null=True)
 
 
@@ -333,11 +335,11 @@ class NumberSerializer(serializers.Serializer):
 
 
 class CocaEmbeddingSerializer(serializers.Serializer):
-    vector = CocaEmbeddingVectorField(required=True, allow_null=False)
+    vector = EmbeddingVectorField(required=True, allow_null=False)
 
 
 class SimilarToVectorSerializer(serializers.Serializer):
-    vector = CocaEmbeddingVectorField(required=True, allow_null=False)
+    vector = EmbeddingVectorField(required=True, allow_null=False)
     number = serializers.IntegerField(min_value=1, max_value=100)
 
 

@@ -17,6 +17,9 @@ import toast from "react-hot-toast";
 
 export const ImagesToolbar: React.FC = () => {
   const { isVisible, toggleVisible } = useSidebarConfig();
+  // Null in similarity mode, where the result set is capped at k and a total
+  // would be a different number from the one on screen.
+  const { totalCount } = useImageListData();
 
   return (
     <>
@@ -34,6 +37,14 @@ export const ImagesToolbar: React.FC = () => {
         <FunnelIcon className="size-4" />
       </button>
       <SearchFilterBar />
+      {totalCount !== null && (
+        <span
+          title="Images matching the current filters"
+          className="hidden md:inline text-xs tabular-nums opacity-60 whitespace-nowrap shrink-0"
+        >
+          {totalCount.toLocaleString()} image{totalCount !== 1 ? "s" : ""}
+        </span>
+      )}
     </>
   );
 };

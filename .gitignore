@@ -71,3 +71,4 @@ sample_images/
 /models
 notebooks/local_files/
 notebooks/loader_files/
+*.egg-info/

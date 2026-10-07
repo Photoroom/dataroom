@@ -410,6 +410,7 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     'DEFAULT_PAGINATION_CLASS': 'backend.api.pagination.CustomCursorPagination',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'backend.api.exceptions.api_exception_handler',
 }
 
 SPECTACULAR_SETTINGS = {
@@ -529,3 +530,17 @@ FETCH_TEXT_FOR_IMAGE_HEADER_VALUE = env('FETCH_TEXT_FOR_IMAGE_HEADER_VALUE', def
 # Local CoCa text encoder (ONNX) — set to model path to use local inference
 # instead of the external FETCH_EMBEDDING_FOR_TEXT API.
 COCA_TEXT_ENCODER_MODEL_PATH = env('COCA_TEXT_ENCODER_MODEL_PATH', default=None)
+
+# One Dagster serves every Dataroom; this picks our asset graph there
+# (dataroom/<env>/..., jobs dataroom_<env>_*). dev, eval or prod; others fail to launch.
+DEPLOYMENT_ENV = env('DEPLOYMENT_ENV', default='local')
+CLASSIFIER_RUNNER = env('CLASSIFIER_RUNNER', default='dagster')
+# the Dagster webserver, e.g. http://dataroom_dagster:3000. Unset disables classifier training.
+DAGSTER_URL = env('DAGSTER_URL', default=None)
+# job names are unique per code location
+DAGSTER_LOCATION_NAME = env('DAGSTER_LOCATION_NAME', default='dataroom')
+DAGSTER_REPOSITORY_NAME = env('DAGSTER_REPOSITORY_NAME', default='__repository__')
+# extra headers on every Dagster request, e.g. auth for a proxy in front of it: "Name=value,Other=value"
+DAGSTER_HTTP_HEADERS = env.dict('DAGSTER_HTTP_HEADERS', default={})
+# the UI as the browser reaches it, for run links. Differs from DAGSTER_URL only in compose.
+DAGSTER_PUBLIC_URL = env('DAGSTER_PUBLIC_URL', default=DAGSTER_URL)

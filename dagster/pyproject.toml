@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataroom-pipelines"
+version = "0.2.0"
+description = "Dataroom's classifier pipelines, a Dagster code location"
+requires-python = ">=3.11"
+dependencies = [
+    # Matches the Dagster server version, bump them together. The libraries
+    # resolve to their matching 0.x releases through the dagster pin.
+    "dagster==1.13.19",
+    # For a Dagster instance with Postgres storage.
+    "dagster-postgres",
+    # 2.1 makes psycopg 3 the default for postgresql:// URLs, dagster-postgres ships psycopg2
+    "sqlalchemy<2.1",
+    # For K8sRunLauncher, runs execute as Kubernetes Jobs.
+    "dagster-k8s",
+
+    # The CPU build of torch is pinned by the Dockerfile's index, not here:
+    # PyPI serves the CUDA one under the same name and version.
+    "torch>=2.3",
+    "torchvision>=0.18",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+    "pillow>=10.0",
+    # httpx is for fetching image bytes; the API itself goes through the client.
+    "httpx",
+    # Trained heads go to S3-compatible storage.
+    "boto3",
+    # Installed from ../dataroom_client in this repo (Dockerfile, CI, compose),
+    # so no version pin: a source build without .git reports 0.0.0.
+    "dataroom-client",
+]
+
+[project.optional-dependencies]
+# dagster-webserver is for `dagster dev` in compose, a deployed Dagster runs its own
+dev = ["pytest>=8.0", "dagster-webserver"]
+
+[tool.setuptools.packages.find]
+include = ["dataroom*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

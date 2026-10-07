@@ -2,9 +2,14 @@
 
 import asyncio
 import atexit
+import concurrent.futures
 import logging
+import sys
 import threading
+import traceback
 from typing import Any
+
+from .models import DataRoomError
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +24,8 @@ class AsyncRunner:
     _loop: asyncio.AbstractEventLoop | None = None
     _thread: threading.Thread | None = None
     _lock = threading.Lock() # To ensure thread-safe initialization
+    # Seconds a sync call or the next iterator item may take before it fails.
+    call_timeout: float = 600
 
     @classmethod
     def _initialize(cls) -> None:
@@ -51,8 +58,20 @@ class AsyncRunner:
         if cls._thread is None:
             cls._initialize()
 
+        name = getattr(coro, "__qualname__", repr(coro))
         future = asyncio.run_coroutine_threadsafe(coro, cls._loop)
-        return future.result()
+        try:
+            return future.result(timeout=cls.call_timeout)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise DataRoomError(f"{name} did not finish within {cls.call_timeout:.0f}s. {cls.loop_stack()}")
+
+    @classmethod
+    def loop_stack(cls) -> str:
+        frame = sys._current_frames().get(cls._thread.ident) if cls._thread else None
+        if frame is None:
+            return "The client's event loop thread is not running."
+        return "The client's event loop thread is at:\n" + "".join(traceback.format_stack(frame, limit=6))
 
     @classmethod
     def submit(cls, coro):

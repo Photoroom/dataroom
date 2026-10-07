@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 
 import django_filters
 import rest_framework.exceptions
@@ -145,6 +146,24 @@ class OSImageFilterSet(django_filters.FilterSet):
     tags__empty = OSBooleanFilter(method='filter_by_tags_empty', help_text='Filter images with no tags.')
     coca_embedding__empty = OSBooleanFilter(
         method='filter_by_coca_embedding_empty', help_text='Filter images with no coca embedding.'
+    )
+    classifications = OSWhitespacePreservingCharFilter(
+        method='filter_by_classifications',
+        is_list=True,
+        help_text=(
+            'Filter by classifier scores: comma-separated "<slug>/<version>__<op>:<score>" pairs, '
+            'e.g. classifications=studio-shots/1__gte:0.8. Ops: gte, lte, gt, lt, eq (default eq).'
+        ),
+    )
+    has_classifications = OSCharFilter(
+        method='filter_by_has_classifications',
+        is_list=True,
+        help_text='Filter images scored by all of these comma-separated classifier slug/versions.',
+    )
+    lacks_classifications = OSCharFilter(
+        method='filter_by_lacks_classifications',
+        is_list=True,
+        help_text='Filter images not scored by any of these comma-separated classifier slug/versions.',
     )
     duplicate_state = OSCharFilter(method='filter_by_duplicate_state')
     datasets = OSCharFilter(
@@ -470,6 +489,31 @@ class OSImageFilterSet(django_filters.FilterSet):
 
     def filter_by_coca_embedding_empty(self, search, name, value):
         return search.filter('term', coca_embedding_exists=not value)
+
+    def filter_by_classifications(self, search, name, value):
+        for pair in value.split(','):
+            match = re.fullmatch(r'(.+?)(?:__(eq|gte|lte|gt|lt))?:(-?\d*\.?\d+)', pair)
+            # an unknown comparator would otherwise be swallowed into the slug
+            if not match or '__' in match.group(1):
+                raise InvalidFilterError(
+                    f'Invalid classifications filter {pair!r}; expected "<slug>/<version>__<op>:<score>".'
+                )
+            slug_version, comparator, score = match.group(1), match.group(2) or 'eq', float(match.group(3))
+            field = f'classifications.{slug_version}'
+            if comparator == 'eq':
+                search = search.filter('term', **{field: score}, _expand__to_dot=False)
+            else:
+                search = search.filter('range', **{field: {comparator: score}}, _expand__to_dot=False)
+        return search
+
+    def filter_by_has_classifications(self, search, name, value):
+        for slug_version in value.split(','):
+            search = search.filter('exists', field=f'classifications.{slug_version}')
+        return search
+
+    def filter_by_lacks_classifications(self, search, name, value):
+        must_not = [{'exists': {'field': f'classifications.{slug_version}'}} for slug_version in value.split(',')]
+        return search.filter('bool', must_not=must_not)
 
     def filter_by_duplicate_state(self, search, name, value):
         if value == 'None':
@@ -834,6 +878,21 @@ class OSFilterBackend(DjangoFilterBackend):
                         filtered[key] = ','.join(parts)
                     continue
                 filtered[key] = value
+            return filtered
+        elif exclude_field.startswith('clf:'):
+            slug_version = exclude_field[4:]
+            filtered = {}
+            for key, value in params.items():
+                if key == 'classifications':
+                    # pairs are <slug>/<version>[__<op>]:<score>
+                    parts = [p for p in value.split(',') if p.rsplit(':', 1)[0].split('__')[0] != slug_version]
+                elif key in ('has_classifications', 'lacks_classifications'):
+                    parts = [p for p in value.split(',') if p != slug_version]
+                else:
+                    filtered[key] = value
+                    continue
+                if parts:
+                    filtered[key] = ','.join(parts)
             return filtered
         elif exclude_field == 'latent':
             exclude_keys.update(['has_latents', 'lacks_latents'])

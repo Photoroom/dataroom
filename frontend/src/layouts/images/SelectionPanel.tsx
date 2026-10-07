@@ -4,6 +4,8 @@ import { twMerge } from "tailwind-merge";
 import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useImageListData } from "../../context/ImageListDataContext";
 import { Image } from "../../components/image/Image";
+import { useClassifierAnnotation } from "../../context/ClassifierAnnotationContext";
+import { AnnotationBadge } from "../../components/classifier/AnnotationBadge";
 
 export const SelectionSidePanel: React.FC<{
   onMinimize: () => void;
@@ -11,6 +13,7 @@ export const SelectionSidePanel: React.FC<{
   onAddToDataset: () => void;
 }> = ({ onMinimize, onAddTags, onAddToDataset }) => {
   const { selectedImages, selectedImageObjects, toggleSelectedImage, clearSelectedImages } = useImageListData();
+  const { sideOf } = useClassifierAnnotation();
 
   const selectedImagesString = `${selectedImages.length} image${selectedImages.length === 1 ? "" : "s"}`;
   const missingCount = selectedImages.length - selectedImageObjects.length;
@@ -58,7 +61,10 @@ export const SelectionSidePanel: React.FC<{
             <div className="grid grid-cols-5 sm:grid-cols-4 gap-1.5">
               {selectedImageObjects.map(img => (
                 <div key={img.id} className="relative group aspect-square">
-                  <Image image={img} />
+                  {/* Badged when annotating a classifier, so "N already
+                      labelled" is visible per image instead of just as a count.
+                      Renders nothing anywhere else. */}
+                  <Image image={img} badge={<AnnotationBadge side={sideOf(img)} />} />
                   <button
                     type="button"
                     onClick={() => toggleSelectedImage(img.id, false)}

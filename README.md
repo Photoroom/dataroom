@@ -117,7 +117,10 @@ See [Backend setup](#backend-setup) if you like to run the Django backend locall
 ### Run Tests
 Run all the backend tests inside of the Django docker:
 ```bash
-docker compose run --rm dataroom_django pytest
+docker compose run --rm \
+  -e DJANGO_SETTINGS_MODULE=backend.config.settings.test \
+  -e TEST_OPENSEARCH_URL=http://opensearch:9200 \
+  dataroom_django pytest
 ```
 
 ### Pre-commit Hooks

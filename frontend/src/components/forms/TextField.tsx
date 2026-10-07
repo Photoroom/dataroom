@@ -48,3 +48,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
 );
 
 TextField.displayName = "TextField";
+
+export const formWidgetClassName =
+  "block w-full border bg-white border-black/20 text-black outline-none focus:ring-1 focus:border-brand-500 " +
+  "focus:ring-brand-500 dark:border-white/10 dark:bg-black/20 dark:text-white p-1.5 px-2.5 text-sm rounded-lg";

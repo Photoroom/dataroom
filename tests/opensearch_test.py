@@ -35,6 +35,7 @@ def test_os_image_serialized_simple(image_logo):
         "related_images": {},
         "datasets": [],
         "memberships": [],
+        "classifications": {},
     }
 
     es_json = image_logo.to_json(all_fields=True)
@@ -68,6 +69,7 @@ def test_os_image_serialized_simple(image_logo):
         "related_images": {},
         "datasets": [],
         "memberships": [],
+        "classifications": {},
     }
 
 
@@ -121,6 +123,7 @@ def test_os_image_serialized_no_coca(os_image):
         "related_images": {},
         "datasets": [],
         "memberships": [],
+        "classifications": {},
     }
 
     es_json = os_image.to_json(all_fields=True)
@@ -151,6 +154,7 @@ def test_os_image_serialized_no_coca(os_image):
         "related_images": {},
         "datasets": [],
         "memberships": [],
+        "classifications": {},
     }
 
 
@@ -256,6 +260,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
         },
         "datasets": ["test/1"],
         "memberships": [],
+        "classifications": {},
     }
 
     # serialize to json
@@ -309,6 +314,7 @@ async def test_os_image_serialized_complex(DataRoom, tests_path, image_logo):
         },
         "datasets": ["test/1"],
         "memberships": [],
+        "classifications": {},
     }
 
     # test specifying doc fields

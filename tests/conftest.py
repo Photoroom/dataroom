@@ -16,6 +16,16 @@ from backend.dataroom.models.group import GroupType, GroupTypeRole, Role
 
 from . import vectors
 
+# os_index drops and recreates OSImage.INDEX. An env DJANGO_SETTINGS_MODULE beats pytest.ini,
+# so with non-test settings this would wipe the real dev index. README has the safe invocation.
+if 'test' not in settings.OPENSEARCH_IMAGES_INDEX_NAME:
+    raise RuntimeError(
+        f'Refusing to run tests against OpenSearch index '
+        f'{settings.OPENSEARCH_IMAGES_INDEX_NAME!r} (settings module '
+        f'{os.environ.get("DJANGO_SETTINGS_MODULE")!r}): the test fixtures would '
+        f'destroy it. Ensure DJANGO_SETTINGS_MODULE=backend.config.settings.test.'
+    )
+
 # Under pytest-xdist every worker gets its own OpenSearch index (pytest-django
 # already gives each worker its own test database). The per-test setup fixture
 # below drops and recreates OSImage.INDEX, so without this suffix parallel

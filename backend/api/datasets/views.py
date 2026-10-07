@@ -96,7 +96,7 @@ def _sync_dataset_groups(dataset, group_ids):
     DatasetMembership.objects.filter(dataset=dataset, group_id__in=changed).update(os_synced=True)
 
 
-def _sync_dataset_copy(dataset, group_ids):
+def sync_dataset_copy(dataset, group_ids):
     """OS phase for a copy: every image in the copied groups gains exactly this dataset.
 
     A copy only ADDS membership, so instead of recomputing each image's whole dataset
@@ -129,11 +129,18 @@ class DatasetViewSet(ModelViewSet):
     search_fields = ['slug', 'slug_version', 'name']
 
     def get_queryset(self):
-        return (
+        queryset = (
             Dataset.objects.all()
             .select_related('author', 'type')
             .annotate(group_count=Count('memberships', filter=Q(memberships__deleted_at__isnull=True)))
         )
+        # Datasets owned by another object (a classifier's example sets) are
+        # edited through their owner, so they stay out of the list unless asked
+        # for. Retrieving one by slug/version still works — links to them from
+        # the owner have to resolve.
+        if self.action == 'list' and self.request.query_params.get('include_internal') != 'true':
+            queryset = queryset.filter(is_internal=False)
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -213,7 +220,7 @@ class DatasetViewSet(ModelViewSet):
         with transaction.atomic():
             new_dataset.copy_groups_from(source)
         copied_ids = list(new_dataset.memberships.filter(deleted_at__isnull=True).values_list('group_id', flat=True))
-        _sync_dataset_copy(new_dataset, copied_ids)
+        sync_dataset_copy(new_dataset, copied_ids)
         return Response(DatasetSerializer(new_dataset).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(

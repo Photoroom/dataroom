@@ -83,6 +83,8 @@ class Dataset(BaseModel):
     description = models.TextField(blank=True, default='')
     is_frozen = models.BooleanField(default=False)
     cover_image_id = models.CharField(max_length=255, blank=True, default='')
+    # owned by another object, like a classifier's example sets, hidden from the list unless include_internal
+    is_internal = models.BooleanField(default=False)
 
     # DatasetVersionManager is slug-keyed and model-agnostic: reusing it here
     # keeps Dataset versions independent from image-Dataset versions.

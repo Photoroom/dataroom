@@ -130,10 +130,25 @@ export const BUILTIN_FIELDS: BuiltinField[] = [
     fieldType: "string",
     typeBadge: "string",
   },
+  {
+    key: "coca_embedding",
+    label: "CoCa Embedding",
+    category: "Embeddings",
+    fieldType: "enum_single",
+  },
   // Dates
   { key: "date_created", label: "Date Created", category: "Dates", fieldType: "date", typeBadge: "date" },
   { key: "date_updated", label: "Date Updated", category: "Dates", fieldType: "date", typeBadge: "date" },
 ];
+
+// Presence filter on the backend's `coca_embedding__empty`. Backbone features
+// are latents, the latent filter covers them.
+export const EMBEDDING_FIELDS = new Set<string>(["coca_embedding"]);
+
+export const EMBEDDING_PRESENCE_LABELS: Record<string, string> = {
+  present: "Present",
+  missing: "Missing",
+};
 
 export const SIMILARITY_FIELDS = [
   {
@@ -230,6 +245,7 @@ export function getFieldLabel(fieldKey: string): string {
   const builtin = BUILTIN_FIELDS.find(f => f.key === fieldKey);
   if (builtin) return builtin.label;
   if (fieldKey.startsWith("attr:")) return fieldKey.slice(5);
+  if (fieldKey.startsWith("clf:")) return `score ${fieldKey.slice(4)}`;
   if (fieldKey === "has_attributes") return "Has Attr";
   if (fieldKey === "lacks_attributes") return "Lacks Attr";
   return fieldKey;
@@ -237,6 +253,7 @@ export function getFieldLabel(fieldKey: string): string {
 
 export function getChipDisplayValue(chip: FilterChip): string {
   if (chip.field === "duplicate_state") return DUPLICATE_STATE_LABELS[chip.value] || chip.value;
+  if (EMBEDDING_FIELDS.has(chip.field)) return EMBEDDING_PRESENCE_LABELS[chip.value] || chip.value;
   return chip.value;
 }
 

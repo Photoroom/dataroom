@@ -1,4 +1,5 @@
 from backend.dataroom.models.attributes import *  # noqa: F403
+from backend.dataroom.models.classifier import *  # noqa: F403
 from backend.dataroom.models.dataset import *  # noqa: F403
 from backend.dataroom.models.group import *  # noqa: F403
 from backend.dataroom.models.latents import *  # noqa: F403

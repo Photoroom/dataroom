@@ -21,7 +21,8 @@ import { DateRangePicker } from "./DateRangePicker";
 import { RANGE_REPLACES } from "./numericConflicts";
 import type { FacetsResponse } from "./useFacets";
 import { useFieldCatalog, overlayFacetCounts } from "./useFieldCatalog";
-import type { AttributeField } from "../../../api/client.schemas";
+import { useScoredClassifiers } from "./useScoredClassifiers";
+import type { AttributeField, Classifier } from "../../../api/client.schemas";
 
 // All builtin fields are eligible for the sidebar add-section picker
 const SIDEBAR_ELIGIBLE_BUILTINS = BUILTIN_FIELDS;
@@ -50,6 +51,9 @@ export const FilterSidebar: React.FC = () => {
     [attributesData]
   );
 
+  // Scored classifiers can be added as score sections from the + picker.
+  const scoredClassifiers = useScoredClassifiers(isVisible);
+
   if (!isVisible) return null;
 
   return (
@@ -75,7 +79,12 @@ export const FilterSidebar: React.FC = () => {
         <span className="text-[10px] font-semibold uppercase tracking-wider text-black/40 dark:text-white/40">
           Filters
         </span>
-        <AddSectionButton sections={sections} onAdd={addSection} indexedAttrs={indexedAttrs} />
+        <AddSectionButton
+          sections={sections}
+          onAdd={addSection}
+          indexedAttrs={indexedAttrs}
+          classifiers={scoredClassifiers}
+        />
       </div>
 
       {/* Sections — pinned ones (dataset) have no remove affordance */}
@@ -83,6 +92,7 @@ export const FilterSidebar: React.FC = () => {
         <SidebarSection
           key={field}
           field={field}
+          label={classifierLabel(field, scoredClassifiers)}
           committedFilterParams={committedFilterParams}
           isCollapsed={!!collapsed[field]}
           onToggleCollapse={() => toggleCollapsed(field)}
@@ -103,10 +113,21 @@ export const FilterSidebar: React.FC = () => {
   );
 };
 
+// Versions of a classifier usually share its name, so the label carries the version.
+const scoreLabel = (clf: Classifier) => `${clf.name} v${clf.version} score`;
+
+// Label for a classifier section; undefined falls back to getFieldLabel.
+const classifierLabel = (field: string, classifiers: Classifier[]) => {
+  if (!field.startsWith("clf:")) return undefined;
+  const clf = classifiers.find(c => `clf:${c.slug_version}` === field);
+  return clf ? scoreLabel(clf) : undefined;
+};
+
 // -------------------- Section --------------------
 
 interface SidebarSectionProps {
   field: string;
+  label?: string;
   committedFilterParams: Record<string, string>;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -120,6 +141,7 @@ const SHOW_MORE_STEP = 50;
 
 const SidebarSection: React.FC<SidebarSectionProps> = ({
   field,
+  label: labelOverride,
   committedFilterParams,
   isCollapsed,
   onToggleCollapse,
@@ -178,14 +200,14 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({
     return { buckets: filteredBuckets ? overlayFacetCounts(catalog.values, filteredBuckets) : catalog.values };
   }, [isCatalog, hasOtherFilters, facetsQuery.data, field, catalog.values]);
   const discreteIsLoading = isCatalog ? catalog.isLoading : facetsQuery.isLoading;
-  const label = getFieldLabel(field);
+  const label = labelOverride ?? getFieldLabel(field);
 
   // All chips across all lanes
   const allChips = useMemo(() => lanes.flatMap(l => l.chips), [lanes]);
 
   // Detect numeric field (builtin or attribute)
   const isNumeric = useMemo(() => {
-    if (NUMERIC_FIELDS.has(field)) return true;
+    if (NUMERIC_FIELDS.has(field) || field.startsWith("clf:")) return true;
     if (field.startsWith("attr:")) {
       const attr = indexedAttrs.find(a => a.name === field.slice(5));
       return attr?.field_type === "number" || attr?.field_type === "integer";
@@ -710,9 +732,10 @@ interface AddSectionButtonProps {
   sections: string[];
   onAdd: (field: string) => void;
   indexedAttrs: AttributeField[];
+  classifiers: Classifier[];
 }
 
-const AddSectionButton: React.FC<AddSectionButtonProps> = ({ sections, onAdd, indexedAttrs }) => {
+const AddSectionButton: React.FC<AddSectionButtonProps> = ({ sections, onAdd, indexedAttrs, classifiers }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -735,8 +758,15 @@ const AddSectionButton: React.FC<AddSectionButtonProps> = ({ sections, onAdd, in
       items.push({ key, label: attr.name, category: "Attributes" });
     }
 
+    for (const clf of classifiers) {
+      const key = `clf:${clf.slug_version}`;
+      if (sectionsSet.has(key)) continue;
+      if (q && !`${clf.name} ${clf.slug_version}`.toLowerCase().includes(q)) continue;
+      items.push({ key, label: scoreLabel(clf), category: "Classifier Scores" });
+    }
+
     return items;
-  }, [sectionsSet, indexedAttrs, search]);
+  }, [sectionsSet, indexedAttrs, classifiers, search]);
 
   if (!isOpen) {
     return (

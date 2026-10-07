@@ -10,6 +10,7 @@ Read methods that page (list/filter, iter) follow the server cursor up to
 ``limit``, so pagination is automatic.
 """
 
+from .classifiers import ClassifiersResource
 from .datasets import DatasetsResource
 from .groups import GroupsResource, GroupTypesResource, RolesResource
 from .images import ImagesResource
@@ -19,6 +20,7 @@ from .tags import TagsResource
 # The namespace properties added to both client classes, and (via ``_compat``)
 # the metadata source for the flat delegates.
 _RESOURCES = {
+    "classifiers": ClassifiersResource,
     "datasets": DatasetsResource,
     "groups": GroupsResource,
     "images": ImagesResource,

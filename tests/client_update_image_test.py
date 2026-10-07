@@ -2,6 +2,7 @@ import pytest
 from asgiref.sync import sync_to_async
 
 from backend.dataroom.models import Tag, LatentType
+from backend.dataroom.models.os_image import OSImage
 from backend.dataroom.models.attributes import AttributesField, AttributesSchema
 from dataroom_client import DataRoomError, DataRoomFile
 from tests.utils import get_random_vector
@@ -431,3 +432,18 @@ async def test_bulk_update(DataRoom, image_logo, image_logo_alt, image_logo_smal
         elif image['id'] == image_perfume.id:
             assert image['attributes'] == {'example': 5}
             assert image['tags'] == ['test5']
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db
+async def test_only_a_latent_only_update_skips_the_refresh(DataRoom, tests_path, image_logo, mocker):
+    await sync_to_async(LatentType.objects.create)(name='embedding', is_mask=False)
+    save = mocker.patch.object(OSImage, 'save', autospec=True, side_effect=OSImage.save)
+    latent_file = DataRoomFile.from_path(tests_path / 'images/logo_latent.txt')
+
+    await DataRoom.update_image(image_id=image_logo.id, latents=[{'latent_type': 'embedding', 'file': latent_file}])
+    await DataRoom.update_image(image_id=image_logo.id, source='test2')
+
+    assert [call.kwargs['refresh'] for call in save.call_args_list] == [False, True]
+    image = await DataRoom.get_image(image_logo.id, all_fields=True)
+    assert [latent['latent_type'] for latent in image['latents']] == ['embedding']

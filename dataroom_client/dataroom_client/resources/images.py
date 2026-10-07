@@ -824,6 +824,7 @@ class ImagesResource(Resource):
         if coca_embedding:
             validate_vector(coca_embedding)
 
+
         if latents:
             files = []
             for i, latent in enumerate(latents):

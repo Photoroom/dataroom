@@ -8,6 +8,10 @@ import { URLS } from "./urls";
 import { DatasetsLayout } from "./layouts/DatasetsLayout";
 import { DatasetListPage } from "./pages/DatasetListPage";
 import { DatasetDetailPage } from "./pages/DatasetDetailPage";
+import { ClassifiersLayout } from "./layouts/ClassifiersLayout";
+import { ClassifierAnnotateLayout } from "./layouts/ClassifierAnnotateLayout";
+import { ClassifierListPage } from "./pages/ClassifierListPage";
+import { ClassifierDetailPage } from "./pages/ClassifierDetailPage";
 import { GroupsLayout } from "./layouts/GroupsLayout";
 import { GroupListPage } from "./pages/GroupListPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
@@ -57,6 +61,43 @@ export const router = createBrowserRouter([
                 errorElement: <ErrorPage />,
               },
             ],
+          },
+        ],
+      },
+      {
+        element: <ClassifiersLayout />,
+        errorElement: <ErrorPage />,
+        children: [
+          {
+            errorElement: <ErrorPage />,
+            children: [
+              {
+                path: URLS.CLASSIFIER_LIST(),
+                index: true,
+                element: <ClassifierListPage />,
+              },
+              {
+                path: URLS.CLASSIFIER_DETAIL(":classifierSlug", ":classifierVersion"),
+                element: <ClassifierDetailPage />,
+                errorElement: <ErrorPage />,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        element: <ClassifierAnnotateLayout />,
+        errorElement: <ErrorPage />,
+        children: [
+          {
+            path: URLS.CLASSIFIER_ANNOTATE(":classifierSlug", ":classifierVersion"),
+            element: null,
+            errorElement: <ErrorPage />,
+          },
+          {
+            path: URLS.CLASSIFIER_ANNOTATE_IMAGE(":classifierSlug", ":classifierVersion", ":imageId"),
+            element: null,
+            errorElement: <ErrorPage />,
           },
         ],
       },
